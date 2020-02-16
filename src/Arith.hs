@@ -4,12 +4,14 @@ import Text.Printf (printf)
 import Text.Read (readMaybe)
 import Data.Char (isDigit, digitToInt)
 import Data.Tuple (swap)
-import qualified Sum (parseNum, splitOn)
-
 import Data.List (intercalate)
 import Data.Maybe (fromJust)
-import Control.Applicative ((<|>))
-import Control.Monad (foldM)
+import Control.Applicative
+import Control.Monad
+import Control.Monad.Fail
+import Data.Monoid
+
+import qualified Sum (parseNum, splitOn)
 
 -- "1+2*3+4*2" -> 15
 data Operator = Plus
@@ -52,38 +54,85 @@ fromPostfix input = do
             r:l:rest <- Just stack
             return $ BinOp op l r : rest
 
-type Parser a = String -> Maybe (a, String)
+newtype Parser a = Parser {runParser :: String -> Maybe (a, String)}
 
-parseChar :: Char -> Parser ()
-parseChar c = \s -> do
+instance Functor Parser where
+    fmap f = Parser . (fmap $ fmap $ swap . fmap f . swap) . runParser
+
+instance Applicative Parser where
+    pure x = Parser $ \s -> Just (x, s)
+    Parser p1 <*> Parser p2 = Parser $ \s -> do
+        (f, t) <- p1 s
+        (x, t') <- p2 t
+        return (f x, t')
+
+instance Alternative Parser where
+    empty = Parser $ const Nothing
+    Parser p1 <|> Parser p2 = Parser $ \s -> p1 s <|> p2 s
+
+instance Monad Parser where
+    Parser p >>= k = Parser $ \s -> do
+        (x, t) <- p s
+        (y, t') <- runParser (k x) t
+        return (y, t')
+
+instance MonadPlus Parser
+
+instance MonadFail Parser where
+    fail _ = empty
+
+satisfy :: (Char -> Bool) -> Parser Char
+satisfy p = Parser $ \s -> do
     c:t <- Just s
-    return ((), t)
+    guard $ p c
+    return (c, t)
+
+char :: Char -> Parser Char
+char c = satisfy (== c)
+
+num :: Parser AST
+num = Num . Sum.parseNum <$> some (satisfy isDigit)
+
+operator :: Parser Operator
+operator = Parser parseOp
+
+opMult :: Parser Operator
+opMult = do
+    op <- operator
+    guard (op == Mult || op == Div)
+    return op
+
+opSum :: Parser Operator
+opSum = do
+    op <- operator
+    guard (op == Plus || op == Minus)
+    return op
+
+endoConcat :: [a -> a] -> a -> a
+endoConcat = appEndo . mconcat . map Endo
+
+multExpr :: Parser AST
+multExpr = endoConcat <$> many (term <**> (BinOp <$> opMult)) <*> term
+
+sumExpr :: Parser AST
+sumExpr = endoConcat <$> many (multExpr <**> (BinOp <$> opSum)) <*> multExpr
+
+term :: Parser AST
+term = num <|> char '(' *> sumExpr <* char ')'
 
 -- Парсит левую скобку
 parseLbr :: String -> Maybe ((), String)
-parseLbr = parseChar '('
+parseLbr = runParser $ () <$ char '('
 
 -- Парсит правую скобку
 parseRbr :: String -> Maybe ((), String)
-parseRbr = parseChar ')'
+parseRbr = runParser $ () <$ char ')'
 
 parseExpr :: String -> Maybe (AST, String)
-parseExpr input = parseSum input
-
-parseTerm :: Parser AST
-parseTerm input = parseNum input <|> do
-    (_, rest) <- parseLbr input
-    (term, rest') <- parseSum rest
-    (_, rest'') <- parseRbr rest'
-    return (term, rest'')
+parseExpr = parseSum
 
 parseNum :: String -> Maybe (AST, String)
-parseNum input =
-    let (num, rest) = span isDigit input in
-    case num of
-      [] -> Nothing
-      xs -> Just (Num $ Sum.parseNum xs, rest)
-
+parseNum = runParser num
 
 parseOp :: String -> Maybe (Operator, String)
 parseOp ('+':xs) = Just (Plus, xs)
@@ -93,23 +142,10 @@ parseOp ('/':xs) = Just (Div, xs)
 parseOp _ = Nothing
 
 parseMult :: String -> Maybe (AST, String)
-parseMult input = do
-    (num, rest) <- parseTerm input
-    case parseOp rest of
-      Just (op, rest') | op == Mult || op == Div -> do
-        (r, rest'') <- parseMult rest'
-        return (BinOp op num r, rest'')
-      _ -> return (num, rest)
-
+parseMult = runParser multExpr
 
 parseSum :: String -> Maybe (AST, String)
-parseSum input = do
-  (l, rest) <- parseMult input
-  case parseOp rest of
-    Just (op, rest') | op == Plus || op == Minus -> do
-      (r, rest'') <- parseSum rest'
-      return (BinOp op l r, rest'')
-    _ -> return (l, rest)
+parseSum = runParser sumExpr
 
 evaluate :: String -> Maybe Int
 evaluate input = do
