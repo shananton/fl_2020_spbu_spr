@@ -36,6 +36,143 @@ initial text={}
 
 \begin{enumerate}
   \item Доказать или опровергнуть утверждение: произведение двух минимальных автоматов всегда дает минимальный автомат (рассмотреть случаи для пересечения, объединения и разности языков).
+
+    Решение:
+
+    Утверждение неверно во всех случаях. Более того, неверно даже то, что автомат
+    будет минимальным с точностью до удаления недостижимых вершин.
+    (в примере недостижимых вершин в произведении нет).
+
+    Рассмотрим два языка над алфавитом $\{0, 1\}$.
+    Пусть $L_1$ --- слова с нечетным количеством единиц,
+    $L_2$ --- слова, заканчивающиеся на 1.
+
+    Соответствующие минимальные автоматы:
+
+    Для $L_1$:
+
+    \begin{myauto}
+      \node[state,initial]   (A)              {$A$};
+      \node[state,accepting] (B) [right=of A] {$B$};
+      \path[->]
+        (A) edge [loop above]    node [above] {$0$} ()
+            edge [bend right=20] node [below] {$1$} (B)
+        (B) edge [loop above]    node [above] {$0$} ()
+            edge [bend right=20] node [above] {$1$} (A)
+      ;
+    \end{myauto}
+
+    Для $L_2$:
+
+    \begin{myauto}
+      \node[state,initial]   (X)              {$X$};
+      \node[state,accepting] (Y) [right=of X] {$Y$};
+      \path[->]
+        (X) edge [loop above]    node [above] {$0$} ()
+            edge [bend right=20] node [below] {$1$} (Y)
+        (Y) edge [loop above]    node [above] {$1$} ()
+            edge [bend right=20] node [above] {$0$} (X)
+      ;
+    \end{myauto}
+
+    Автоматы для $L_1 \cap L_2$: автомат-произведение и минимальный соответственно:
+
+    \begin{myauto}
+      \node[state,initial]   (AX)               {$AX$};
+      \node[state]           (AY) [right=of AX] {$AY$};
+      \node[state,accepting] (BY) [below=of AX] {$BY$};
+      \node[state]           (BX) [right=of BY] {$BX$};
+      \path[->]
+        (AX) edge [loop above]    node [above] {$0$} ()
+             edge                 node [left]  {$1$} (BY)
+        (AY) edge                 node [above] {$0$} (AX)
+             edge [bend right=20] node [above] {$1$} (BY)
+        (BX) edge                 node [right] {$1$} (AY)
+             edge [loop below]    node [below] {$0$} ()
+        (BY) edge                 node [below] {$0$} (BX)
+             edge [bend right=20] node [below] {$1$} (AY)
+      ;
+    \end{myauto}
+
+    \begin{myauto}
+      \node[state,initial]   (AX/AY)                  {$AX/AY$};
+      \node[state,accepting] (BY)    [below=of AX/AY] {$BY$};
+      \node[state]           (BX)    [right=of BY]    {$BX$};
+      \path[->]
+        (AX/AY) edge [loop above]    node [above] {$0$} ()
+                edge [bend right=20] node [left]  {$1$} (BY)
+        (BY)    edge [bend right=20] node [right] {$1$} (AX/AY)
+                edge                 node [below] {$0$} (BX)
+        (BX)    edge [loop below]    node [below] {$0$} ()
+                edge                 node [above] {$1$} (AX/AY)
+      ;
+    \end{myauto}
+
+    Автоматы для $L_1 \cup L_2$: автомат-произведение и минимальный соответственно:
+
+    \begin{myauto}
+      \node[state,initial]   (AX)               {$AX$};
+      \node[state,accepting] (AY) [right=of AX] {$AY$};
+      \node[state,accepting] (BY) [below=of AX] {$BY$};
+      \node[state,accepting] (BX) [right=of BY] {$BX$};
+      \path[->]
+        (AX) edge [loop above]    node [above] {$0$} ()
+             edge                 node [left]  {$1$} (BY)
+        (AY) edge                 node [above] {$0$} (AX)
+             edge [bend right=20] node [above] {$1$} (BY)
+        (BX) edge                 node [right] {$1$} (AY)
+             edge [loop below]    node [below] {$0$} ()
+        (BY) edge                 node [below] {$0$} (BX)
+             edge [bend right=20] node [below] {$1$} (AY)
+      ;
+    \end{myauto}
+
+    \begin{myauto}
+      \node[state,accepting] (BX/BY)                  {$BX/BY$};
+      \node[state,initial]   (AX)    [above=of BX/BY] {$AX$};
+      \node[state,accepting] (AY)    [right= of AX]   {$AY$};
+      \path[->]
+        (BX/BY) edge [loop below]    node [below] {$0$} ()
+                edge [bend right=20] node [right] {$1$} (AY)
+        (AY)    edge [bend right=20] node [left]  {$1$} (BX/BY)
+                edge                 node [above] {$0$} (AX)
+        (AX)    edge [loop above]    node [above] {$0$} ()
+                edge                 node [left]  {$1$} (BX/BY)
+      ;
+    \end{myauto}
+
+    Автоматы для $L_1 \setminus L_2$: автомат-произведение и минимальный соответственно:
+
+    \begin{myauto}
+      \node[state,initial]   (AX)               {$AX$};
+      \node[state]           (AY) [right=of AX] {$AY$};
+      \node[state]           (BY) [below=of AX] {$BY$};
+      \node[state,accepting] (BX) [right=of BY] {$BX$};
+      \path[->]
+        (AX) edge [loop above]    node [above] {$0$} ()
+             edge                 node [left]  {$1$} (BY)
+        (AY) edge                 node [above] {$0$} (AX)
+             edge [bend right=20] node [above] {$1$} (BY)
+        (BX) edge                 node [right] {$1$} (AY)
+             edge [loop below]    node [below] {$0$} ()
+        (BY) edge                 node [below] {$0$} (BX)
+             edge [bend right=20] node [below] {$1$} (AY)
+      ;
+    \end{myauto}
+
+    \begin{myauto}
+      \node[state,initial]   (AX/AY)                  {$AX/AY$};
+      \node[state]           (BY)    [below=of AX/AY] {$BY$};
+      \node[state,accepting] (BX)    [right=of BY]    {$BX$};
+      \path[->]
+        (AX/AY) edge [loop above]    node [above] {$0$} ()
+                edge [bend right=20] node [left]  {$1$} (BY)
+        (BY)    edge [bend right=20] node [right] {$1$} (AX/AY)
+                edge                 node [below] {$0$} (BX)
+        (BX)    edge [loop below]    node [below] {$0$} ()
+                edge                 node [above] {$1$} (AX/AY)
+      ;
+    \end{myauto}
   \item Для регулярного выражения:
    \[ (a \mid b)^+ (aa \mid bb \mid abab \mid baba)^* (a \mid b)^+\]
   Построить эквивалентные:
@@ -44,6 +181,34 @@ initial text={}
     \item Недетерминированный конечный автомат без $\varepsilon$-переходов
     \item Минимальный полный детерминированный конечный автомат
   \end{enumerate}
+
+    Решение:
+
+    Заметим, что это регулярное выражение принимает ровно те слова, в которых хотя
+    бы 2 символа (a или b).
+
+    Доказательство.
+
+    Пусть слово принимается выражением. Тогда хотя бы один символ соответствует
+    первой скобке, и еще хотя бы один --- последней.
+
+    Пусть слово длины хотя бы 2. Тогда сопоставим первый символ первой скобке,
+    второй скобке --- $\varepsilon$, третьей --- все остальные символы.
+
+    Тогда можем построить очевидный автомат, который подходит под все три пункта
+    (да, мне лень набирать три разных):
+    \begin{myauto}
+      \node[state]           (q_1)                {$q_1$};
+      \node[state,initial]   (q_0) [left=of  q_1] {$q_0$};
+      \node[state,accepting] (q_2) [right=of q_1] {$q_2$};
+      \path[->]
+        (q_0) edge              node [above] {$a, b$} (q_1)
+        (q_1) edge              node [above] {$a, b$} (q_2)
+        (q_2) edge [loop above] node [above] {$a, b$} ()
+      ;
+    \end{myauto}
+    Про минимальность тоже понятно: $q_2$ принимает все слова,
+    $q_1$ --- все непустые, $q_0$ --- все длины хотя бы 2.
   \item Построить регулярное выражение, распознающее тот же язык, что и автомат:
   \begin{myauto}
     \node[state]           (q_2)                {$q_2$};
@@ -64,8 +229,52 @@ initial text={}
                     edge              node [above] {$c$}       (q_4)
     ;
   \end{myauto}
+
+    Решение:
+
+    Кажется, что необязательно применять пошаговый алгоритм и рисовать миллион
+    промежуточных автоматов... Методом внимательного взгляда можем
+    получить выражение:
+    \begin{equation*}
+      {(a \mid b \mid c)}^* (a {(b \mid c)}^* a \mid b {(a \mid c)}^* b
+      \mid c {(a \mid b)}^* c)
+    \end{equation*}
+
+    Если посмотреть еще внимательнее, становится ясно, что этот автомат (и выражение)
+    принимают ровно те непустые слова, в которых последний символ не является
+    единственным таким символом в слове.
   \item Определить, является ли автоматным язык $\{ \omega \omega^r \mid \omega \in \{ 0, 1 \}^* \}$. Если является --- построить автомат, иначе --- доказать.
+
+    Решение:
+
+    Вспомним, что автоматные языки --- это то же, что регулярные.
+
+    Пусть наш язык регулярный, тогда зафиксируем $n$ из леммы о накачке.
+    Рассмотрим слово $w = \omega \omega^r$, где $\omega = 0^{n-1}1$.
+    Это слово длины $2n$, лежащее в языке.
+    Возьмем разбиение из леммы $w = xyz, |xy| \le n, |y| \ge 1$.
+
+    Если $y$ содержит единицу, то в слове $xyyz$ 3 единицы, и оно не может
+    быть четным палиндромом.
+
+    Иначе, $y$ состоит из одних нулей. Но тогда, если бы было верно
+    $xyyz = \omega_0 \omega_0^r$, $\omega_0$ должно было бы содержать ровно одну
+    единицу (т. к. в $xyyz$ их две), но тогда (поскольку единицы все еще стоят рядом)
+    $\omega_0^r$ было бы короче, чем $\omega_0$.
+
+    В обоих случаях получили противоречие, а значит, язык не регулярный.
   \item Определить, является ли автоматным язык $\{ u a a v \mid u, v \in \{ a, b \}^* , |u|_b \geq |v|_a \}$. Если является --- построить автомат, иначе --- доказать.
+
+    Решение:
+
+    Пусть язык регулярный, снова зафиксируем $n$ из леммы о накачке. Рассмотрим слово
+    $w = b^n aa {(ba)}^n$. Это слово длины $2n + 2$, лежащее в языке. Возьмем разбиение из
+    леммы $w = xyz, |xy| \le n, |y| \ge 1$. Заметим, что $y = b^p, p \ge 1$.
+    Но тогда слово $xz = b^{n-p} aa {(ba)}^n$ также должно лежать в языке.
+    Поскольку $aa$ входит в слово лишь один раз, возможен только случай
+    $u = b^{n-p}, v = {(ba)}^n$, но тогда $n - p = |u|_b < |v|_a = n$.
+
+    Получили противоречие, а значит, язык не регулярный.
 \end{enumerate}
 
 \newpage
