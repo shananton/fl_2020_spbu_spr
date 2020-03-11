@@ -8,7 +8,7 @@ predErrMsg :: String
 predErrMsg = "Predicate failed"
 
 digit :: Parser String String Char
-digit = satisfy (`elem` "012346789")
+digit = satisfy (`elem` "0123456789")
 
 unit_satisfy :: Assertion
 unit_satisfy = do
