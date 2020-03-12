@@ -6,6 +6,7 @@ data Operator = Plus
               | Mult
               | Minus
               | Div
+              | Pow
               deriving (Eq)
 
 data AST = BinOp Operator AST AST
@@ -17,6 +18,7 @@ instance Show Operator where
   show Mult  = "*"
   show Minus = "-"
   show Div   = "/"
+  show Pow   = "^"
 
 instance Show AST where
   show  = printf "\n%s" . go 0

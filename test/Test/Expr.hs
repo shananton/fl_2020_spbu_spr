@@ -29,6 +29,9 @@ unit_evaluate = do
     evaluate "((1-(2*3))+4)" @?= Just ((1-(2*3))+4)
     evaluate "1-2+3-4" @?= Just (1-2+3-4)
     evaluate "6/2*3" @?= Just (6 `div` 2 * 3)
+    evaluate "2^10" @?= Just (2^10)
+    evaluate "2^2^2^2" @?= Just (2^2^2^2)
+    evaluate "1+3*4+6+2^3^2*3+1" @?= Just (1+3*4+6+2^3^2*3+1)
 
 unit_parseNum :: Assertion
 unit_parseNum = do
@@ -40,10 +43,11 @@ unit_parseNum = do
 
 unit_parseOp :: Assertion
 unit_parseOp = do
-    runParser parseOp "+1" @?= Success "1" Plus
-    runParser parseOp "**" @?= Success "*" Mult
-    runParser parseOp "-2" @?= Success "2" Minus
-    runParser parseOp "/1" @?= Success "1" Div
+    runParser parseOp "+1"  @?= Success "1" Plus
+    runParser parseOp "**"  @?= Success "*" Mult
+    runParser parseOp "-2"  @?= Success "2" Minus
+    runParser parseOp "/1"  @?= Success "1" Div
+    runParser parseOp "^_^" @?= Success "_^" Pow
     isFailure (runParser parseOp "12") @?= True
 
 unit_parseExpr :: Assertion

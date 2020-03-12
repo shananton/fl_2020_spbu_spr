@@ -37,7 +37,11 @@ parseExpr = uberExpr ops term BinOp
   opDiv    = symbol '/' >>= toOperator
   opPlus   = symbol '+' >>= toOperator
   opMinus  = symbol '-' >>= toOperator
-  ops = [(opPlus <|> opMinus, LeftAssoc), (opMult <|> opDiv, LeftAssoc)]
+  opPow    = symbol '^' >>= toOperator
+  ops = [ (opPlus <|> opMinus, LeftAssoc)
+        , (opMult <|> opDiv, LeftAssoc)
+        , (opPow, RightAssoc)
+        ]
   term = Num <$> parseNum <|> symbol '(' *> parseExpr <* symbol ')'
 
 -- Парсер для натуральных чисел с 0
@@ -54,6 +58,7 @@ toOperator '+' = pure Plus
 toOperator '*' = pure Mult
 toOperator '-' = pure Minus
 toOperator '/' = pure Div
+toOperator '^' = pure Pow
 toOperator _   = fail' "Failed toOperator"
 
 evaluate :: String -> Maybe Int
@@ -68,4 +73,5 @@ compute (BinOp Plus x y)  = compute x + compute y
 compute (BinOp Mult x y)  = compute x * compute y
 compute (BinOp Minus x y) = compute x - compute y
 compute (BinOp Div x y)   = compute x `div` compute y
+compute (BinOp Pow x y)   = compute x ^ compute y
 
