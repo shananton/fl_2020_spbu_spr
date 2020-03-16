@@ -1,6 +1,6 @@
 module LLang where
 
-import Arith (AST (..), Operator (..))
+import AST (AST (..), Operator (..))
 
 type Expr = AST
 

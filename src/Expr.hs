@@ -24,12 +24,15 @@ uberExpr = error "uberExpr undefined"
 parseExpr :: Parser String String AST
 parseExpr = error "parseExpr undefined"
 
--- Парсер для натуральных чисел с 0
+-- Парсер для целых чисел
 parseNum :: Parser String String Int
 parseNum = foldl (\acc d -> 10 * acc + digitToInt d) 0 `fmap'` go
   where
     go :: Parser String String String
     go = some' (satisfy isDigit)
+
+parseIdent :: Parser String String String
+parseIdent = error "parseIdent undefined"
 
 -- Парсер для операторов
 parseOp :: Parser String String Operator
