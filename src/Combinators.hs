@@ -1,56 +1,54 @@
 module Combinators where
 
-import           Control.Applicative
+import Control.Applicative
+import Control.Monad
+import Control.Monad.Fail
 
 data Result error input result
   = Success input result
   | Failure error
   deriving (Show, Eq)
 
+instance Functor (Result error input) where
+  fmap f (Success i r) = Success i (f r)
+  fmap f (Failure e)   = Failure e
+
 newtype Parser error input result
   = Parser { runParser :: input -> Result error input result }
 
 instance Functor (Parser error input) where
-  fmap = error "fmap not implemented"
+  fmap f = Parser . fmap (fmap f) . runParser
 
 instance Applicative (Parser error input) where
-  pure = error "pure not implemented"
-  (<*>) = error "<*> not implemented"
+  pure x = Parser $ \s -> Success s x
+  Parser p1 <*> Parser p2 = Parser $ \s -> case p1 s of
+    Failure e   -> Failure e
+    Success i r -> r <$> p2 i
 
 instance Monad (Parser error input) where
-  return = error "return not implemented"
-
-  (>>=) = error ">>= not implemented"
+  Parser x >>= k = Parser $ \s -> case x s of
+    Failure e   -> Failure e
+    Success i r -> runParser (k r) i
 
 instance Monoid error => Alternative (Parser error input) where
-  empty = error "empty not implemented"
+  empty = Parser $ const $ Failure mempty
+  Parser p1 <|> Parser p2 = Parser $ \s -> case p1 s of
+    Failure e -> case p2 s of
+      Failure e' -> Failure $ e <> e'
+      x          -> x
+    x         -> x
 
-  (<|>) = error "<|> not implemented"
+instance Monoid error => MonadPlus (Parser error input)
+
+instance Monoid error => MonadFail (Parser error input) where
+  fail _ = empty
 
 -- Принимает последовательность элементов, разделенных разделителем
 -- Первый аргумент -- парсер для разделителя
 -- Второй аргумент -- парсер для элемента
 -- В последовательности должен быть хотя бы один элемент
-sepBy1 :: Parser e i sep -> Parser e i a -> Parser e i [a]
-sepBy1 sep elem = error "sepBy1 not implemented"
-
--- Альтернатива: в случае неудачи разбора первым парсером, парсит вторым
-alt' :: Parser e i a -> Parser e i a -> Parser e i a
-alt' p q = Parser $ \input ->
-  case runParser p input of
-    Failure _ -> runParser q input
-    x         -> x
-
--- Последовательное применение парсеров:
--- если первый парсер успешно принимает префикс строки, второй запускается на суффиксе.
--- Второй парсер использует результат первого.
-bind' :: Parser e i a
-      -> (a -> Parser e i b)
-      -> Parser e i b
-bind' p f = Parser $ \input ->
-  case runParser p input of
-    Success i r -> runParser (f r) i
-    Failure e   -> Failure e
+sepBy1 :: Monoid e => Parser e i sep -> Parser e i a -> Parser e i [a]
+sepBy1 sep elem = (:) <$> elem <*> many (sep *> elem)
 
 -- Проверяет, что первый элемент входной последовательности -- данный символ
 symbol :: Char -> Parser String String Char
@@ -65,36 +63,9 @@ satisfy :: Show a => (a -> Bool) -> Parser String [a] a
 satisfy p = Parser $ \input ->
   case input of
     (x:xs) | p x -> Success xs x
-    []           -> Failure $ "Empty string"
-    (x:xs)       -> Failure $ "Predicate failed"
-
--- Успешно парсит пустую строку
-epsilon :: Parser e i ()
-epsilon = success ()
-
--- Всегда завершается успехом, вход не читает, возвращает данное значение
-success :: a -> Parser e i a
-success a = Parser $ \input -> Success input a
+    []           -> Failure "Empty string"
+    (x:xs)       -> Failure "Predicate failed"
 
 -- Всегда завершается ошибкой
 fail' :: e -> Parser e i a
 fail' = Parser . const . Failure
-
--- Проверяет, что первый элемент входной последовательности -- данный символ
-fmap' :: (a -> b) -> Parser e i a -> Parser e i b
-fmap' f p = Parser $ \input ->
-  case runParser p input of
-    Success i a -> Success i (f a)
-    Failure e   -> Failure e
-
--- Последовательное применения одного и того же парсера 1 или более раз
-some' :: Parser e i a -> Parser e i [a]
-some' p =
-  p `bind'` \a ->
-  many' p `bind'` \as ->
-  success (a : as)
-
--- Последовательное применение одного и того же парсера 0 или более раз
-many' :: Parser e i a -> Parser e i [a]
-many' p =
-  some' p `alt'` success []
