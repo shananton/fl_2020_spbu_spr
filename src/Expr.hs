@@ -1,10 +1,20 @@
 module Expr where
 
-import AST                 (AST (..), Operator (..))
-import Combinators         (Parser (..), Result (..), symbol, satisfy, elem', fail')
-import Data.Char           (digitToInt, isDigit)
-import Control.Applicative (some, many, (<|>))
-import Data.Function       ((&))
+import           AST                 (AST (..), Operator (..))
+import           Combinators
+import           Lexer
+
+import           Control.Applicative (many, some, (<|>))
+import           Control.Monad       ((>=>))
+import           Control.Monad.State (StateT (..))
+import           Data.Bifunctor      (first)
+import           Data.Char           (digitToInt, isAlpha, isAlphaNum, isDigit,
+                                      isHexDigit)
+import           Data.Function       ((&))
+import           Data.Functor        (($>))
+import           Data.Maybe          (fromJust, maybe)
+import           Data.Monoid         (Alt (..))
+import           Data.Tuple          (swap)
 
 data Associativity
   = LeftAssoc  -- 1 @ 2 @ 3 @ 4 = (((1 @ 2) @ 3) @ 4)
@@ -19,38 +29,53 @@ uberExpr :: Monoid e
          -> Parser e i ast
 uberExpr allOps atom ast = uber allOps
   where
-  astr l o r = ast o l r
-  astl o r l = ast o l r
-  uber ((op, assoc):ops) = let term = uber ops in case assoc of
-    LeftAssoc  -> foldl (&) <$> term <*> many (astl <$> op <*> term)
-    RightAssoc -> flip (foldr ($)) <$> many (astr <$> term <*> op) <*> term
-    NoAssoc    -> astr <$> term <*> op <*> term <|> term
-  uber []                = atom
+    astr l o r = ast o l r
+    astl o r l = ast o l r
+    uber ((op, assoc):ops) = let term = uber ops in
+      case assoc of
+        LeftAssoc  -> foldl (&) <$> term <*> many (astl <$> op <*> term)
+        RightAssoc -> flip (foldr ($)) <$> many (astr <$> term <*> op) <*> term
+        NoAssoc    -> astr <$> term <*> op <*> term <|> term
+    uber [] = atom
+
+expr :: Parser String [Token] AST
+expr = uberExpr ops atom ast
+  where
+    ops = map (first listToParser)
+              [ ([Or], RightAssoc)
+              , ([And], RightAssoc)
+              , ([Equal, Nequal, Lt, Le, Gt, Ge], NoAssoc)
+              , ([Plus, Minus], LeftAssoc)
+              , ([Mult, Div], LeftAssoc)
+              , ([Pow], RightAssoc)
+              ]
+      where
+        listToParser = fmap (getArith . getOp) . getAlt
+          . foldMap (Alt . symbol . TOperator . Arith)
+    atom = signedNum
+        <|> Ident . getId <$> satisfy isId
+        <|> symbol (TSep LPar) *> expr <* symbol (TSep RPar)
+      where
+        signedNum = Num <$> (flip (foldr ($))
+            <$> many (negate <$ symbol (TOperator (Arith Minus)))
+            <*> (getInt <$> satisfy isInt))
+    ast = BinOp
+
+-- Парсеры, чтобы пройти тесты -_-
 
 -- Парсер для выражений над +, -, *, /, ^ (возведение в степень)
 -- с естественными приоритетами и ассоциативностью над натуральными числами с 0.
 -- В строке могут быть скобки
 parseExpr :: Parser String String AST
-parseExpr = uberExpr ops term BinOp
-  where
-  opMult   = symbol '*' >>= toOperator
-  opDiv    = symbol '/' >>= toOperator
-  opPlus   = symbol '+' >>= toOperator
-  opMinus  = symbol '-' >>= toOperator
-  opPow    = symbol '^' >>= toOperator
-  ops = [ (opPlus <|> opMinus, LeftAssoc)
-        , (opMult <|> opDiv, LeftAssoc)
-        , (opPow, RightAssoc)
-        ]
-  term = Num <$> parseNum <|> symbol '(' *> parseExpr <* symbol ')'
+parseExpr = Parser
+  $ maybe (Failure "parseExpr failed") (Success "")
+  . (parseMaybe lexAll >=> parseMaybe (expr <* symbol (TSep Newline)))
 
--- Парсер для целых чисел
 parseNum :: Parser String String Int
-parseNum = foldl (\acc d -> 10 * acc + digitToInt d) 0 <$> some (satisfy isDigit)
+parseNum = flip (foldr ($)) <$> many (negate <$ symbol '-') <*> nat
 
--- Парсер для идентификаторов
 parseIdent :: Parser String String String
-parseIdent = error "parseIdent undefined"
+parseIdent = ident
 
 -- Парсер для операторов
 parseOp :: Parser String String Operator
@@ -66,10 +91,10 @@ toOperator '^' = pure Pow
 toOperator _   = fail' "Failed toOperator"
 
 evaluate :: String -> Maybe Int
-evaluate input = do
-  case runParser parseExpr input of
-    Success rest ast | null rest -> return $ compute ast
-    _                            -> Nothing
+evaluate input = case runParser parseExpr input of
+  Success rest ast
+    | null rest -> return $ compute ast
+  _ -> Nothing
 
 compute :: AST -> Int
 compute (Num x)           = x

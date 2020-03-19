@@ -35,6 +35,9 @@ unit_parseNum = do
     runParser parseNum "7" @?= Success "" 7
     runParser parseNum "12+3" @?= Success "+3" 12
     runParser parseNum "007" @?= Success "" 7
+    runParser parseNum "010" @?= Success "" 8
+    runParser parseNum "0xDEADBEEF" @?= Success "" 0xDEADBEEF
+    isFailure (runParser parseNum "08") @?= True
     isFailure (runParser parseNum "+3") @?= True
     isFailure (runParser parseNum "a") @?= True
 
@@ -95,6 +98,8 @@ unit_parseExpr = do
     runParser parseExpr "1||x" @?= Success "" (BinOp Or (Num 1) (Ident "x"))
     runParser parseExpr "(1==x+2)||3*4<y-5/6&&(7/=z^8)||(id>12)&&abc<=13||xyz>=42" @?=
       runParser parseExpr "(1==(x+2))||(((3*4)<(y-(5/6))&&(7/=(z^8)))||(((id>12)&&(abc<=13))||(xyz>=42)))"
+    runParser parseExpr "-2^2" @?= Success "" (BinOp Pow (Num (-2)) (Num 2))
+    runParser parseExpr "tryA || tryB || return" @?= Success "" (BinOp Or (Ident "tryA") (BinOp Or (Ident "tryB") (Ident "return")))
 
 mult  = symbol '*' >>= toOperator
 sum'  = symbol '+' >>= toOperator
@@ -130,7 +135,7 @@ unit_expr1 = do
 unit_expr2 :: Assertion
 unit_expr2 = do
   runParser expr2 "13" @?= Success "" (Num 13)
-  runParser expr2 "(((1)))" @?= Failure ""
+  isFailure (runParser expr2 "(((1)))") @?= True
   runParser expr2 "1+2*3-4/5" @?= Success "" (BinOp Div (BinOp Minus (BinOp Mult (BinOp Plus (Num 1) (Num 2)) (Num 3)) (Num 4)) (Num 5))
   runParser expr2 "1+2+3" @?= Success "" (BinOp Plus (BinOp Plus (Num 1) (Num 2)) (Num 3))
   runParser expr2 "1*2*3" @?= Success "" (BinOp Mult (BinOp Mult (Num 1) (Num 2)) (Num 3))
