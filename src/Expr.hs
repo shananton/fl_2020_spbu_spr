@@ -71,6 +71,7 @@ parseExpr = Parser
   $ maybe (Failure "parseExpr failed") (Success "")
   . (parseMaybe lexAll >=> parseMaybe (expr <* symbol (TSep Newline)))
 
+-- Парсер для целых чисел
 parseNum :: Parser String String Int
 parseNum = flip (foldr ($)) <$> many (negate <$ symbol '-') <*> nat
 

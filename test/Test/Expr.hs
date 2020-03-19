@@ -38,8 +38,8 @@ unit_parseNum = do
     runParser parseNum "010" @?= Success "" 8
     runParser parseNum "0xDEADBEEF" @?= Success "" 0xDEADBEEF
     isFailure (runParser parseNum "08") @?= True
-    isFailure (runParser parseNum "+3") @?= True
-    isFailure (runParser parseNum "a") @?= True
+    assertBool "" $ isFailure (runParser parseNum "+3")
+    assertBool "" $ isFailure (runParser parseNum "a")
 
 unit_parseNegNum :: Assertion
 unit_parseNegNum = do
@@ -70,7 +70,7 @@ unit_parseOp = do
     runParser parseOp "**" @?= Success "*" Mult
     runParser parseOp "-2" @?= Success "2" Minus
     runParser parseOp "/1" @?= Success "1" Div
-    isFailure (runParser parseOp "12") @?= True
+    assertBool "" $ isFailure (runParser parseOp "12")
 
 unit_parseExpr :: Assertion
 unit_parseExpr = do
@@ -135,7 +135,7 @@ unit_expr1 = do
 unit_expr2 :: Assertion
 unit_expr2 = do
   runParser expr2 "13" @?= Success "" (Num 13)
-  isFailure (runParser expr2 "(((1)))") @?= True
+  assertBool "" $ isFailure $ runParser expr2 "(((1)))"
   runParser expr2 "1+2*3-4/5" @?= Success "" (BinOp Div (BinOp Minus (BinOp Mult (BinOp Plus (Num 1) (Num 2)) (Num 3)) (Num 4)) (Num 5))
   runParser expr2 "1+2+3" @?= Success "" (BinOp Plus (BinOp Plus (Num 1) (Num 2)) (Num 3))
   runParser expr2 "1*2*3" @?= Success "" (BinOp Mult (BinOp Mult (Num 1) (Num 2)) (Num 3))
