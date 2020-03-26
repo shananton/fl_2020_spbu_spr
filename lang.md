@@ -114,8 +114,8 @@ block -> INDENT stmt* DEDENT
 
 if_stmt -> 'if' expr 'then' NL block ('else' NL block)?
 while_stmt -> 'while' expr 'do' NL block
-assign_stmt -> ident '=' expr NL
-read_stmt -> 'read' ident NL
+assign_stmt -> IDENT '=' expr NL
+read_stmt -> 'read' IDENT NL
 write_stmt -> 'write' expr NL
 
 # Названия тоже из питона, извините (они хорошие!!!)
