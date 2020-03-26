@@ -110,7 +110,7 @@ NL просто добавляется в разбор после каждой �
 program -> stmt*
 stmt -> if_stmt | while_stmt | assign_stmt | read_stmt | write_stmt
 
-block -> INDENT stmt* DEDENT
+block -> INDENT stmt+ DEDENT
 
 if_stmt -> 'if' expr 'then' NL block ('else' NL block)?
 while_stmt -> 'while' expr 'do' NL block
