@@ -61,7 +61,7 @@ wspace -> ' ' | '\t'
     # вместо этого, будет найден '/=', а затем разбор завершится неудачей.
     #
     # Скобки для удобства также включены в число операторов.
-    op -> '==' | '/=' | '>=' | '<=' | '&&' | '||' | '<' | '>' | '+' | '-' | '*' | '/' | '^' | '=' | '(' | ')' 
+    op -> '==' | '/=' | '>=' | '<=' | '&&' | '||' | '<' | '>' | '+' | '-' | '*' | '/' | '^' | '=' | '(' | ')' | ',' 
 
     kword -> ('if' | 'then' | 'else' | 'while' | 'do' | 'read' | 'write') [!alnum]
 
@@ -108,25 +108,35 @@ wspace -> ' ' | '\t'
 
 ```
 program -> stmt*
-stmt -> if_stmt | while_stmt | assign_stmt | read_stmt | write_stmt
+
+# Присваивание, read и write можно писать внутри строки через запятую
+# Одноуровневые if и while также можно поместить в одну строку
+stmt -> inline_block NL | if_stmt | while_stmt
+
+inline_block -> inline_stmt (',' inline_stmt)*
+inline_stmt -> inline_assign | inline_read | inline_write
+inline_assign -> IDENT '=' expr
+inline_read -> 'read' IDENT
+inline_write -> 'write' expr
 
 block -> INDENT stmt+ DEDENT
 
-if_stmt -> 'if' expr 'then' NL block ('else' NL block)?
-while_stmt -> 'while' expr 'do' NL block
-assign_stmt -> IDENT '=' expr NL
-read_stmt -> 'read' IDENT NL
-write_stmt -> 'write' expr NL
+while_stmt -> while_full | while_short
+while_full -> 'while' expr 'do' NL block
+while_short -> 'while' expr 'do' inline_block NL
+
+if_stmt -> if_full | if_short
+if_full -> 'if' expr 'then' NL block ('else' NL block)?
+if_short -> 'if' expr 'then' inline_block ('else' inline_block)? NL
 
 # Названия тоже из питона, извините (они хорошие!!!)
-# Звездочки вместо саморекурсивных обозначений, кажется, больше раскрывают, что на самом деле происходит
 expr -> or_test
-or_test -> (and_test '||')* and_test
-and_test -> (comp_test '&&')* comp_test
+or_test -> (or_test '||')? and_test
+and_test -> (and_test '&&')? comp_test
 comp_test -> arith_expr | arith_expr ('==' | '/=' | '<=' | '>=' | '<' | '>') arith_expr
-arith_expr -> term (('+' | '-') term)*
-term -> factor (('*' | '/') factor)*
+arith_expr -> term (('+' | '-') arith_expr)?
+term -> factor (('*' | '/') term)?
 # Унарные операторы, допустимо использовать несколько подряд
-factor -> ('+' | '-') factor | (atom '^')* atom
+factor -> ('+' | '-') factor | (factor '^')? atom
 atom -> '(' expr ')' | IDENT | NAT
 ```
