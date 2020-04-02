@@ -40,7 +40,7 @@ uberExpr allOps atom astBin astUn = uber allOps
         Binary LeftAssoc  -> foldl (&) <$> term <*> many (astl <$> op <*> term)
         Binary RightAssoc -> flip (foldr ($)) <$> many (astr <$> term <*> op) <*> term <|> term
         Binary NoAssoc    -> astr <$> term <*> op <*> term <|> term
-        Unary             -> option id (astUn <$> op) <*> term
+        Unary             -> flip (foldr ($)) <$> many (astUn <$> op) <*> term
     uber [] = atom
 
 expr :: Parser String [Token] AST
@@ -84,8 +84,27 @@ arithRepr =
   , (Not, "!")
   ]
 
+-- Универсальный парсер выражений
+uberExpr' :: Monoid e
+         => [(Parser e i op, OpType)] -- список операций с их арностью и, в случае бинарных, ассоциативностью
+         -> Parser e i ast            -- парсер элементарного выражения
+         -> (op -> ast -> ast -> ast) -- конструктор узла дерева для бинарной операции
+         -> (op -> ast -> ast)        -- конструктор узла для унарной операции
+         -> Parser e i ast
+uberExpr' allOps atom astBin astUn = uber allOps
+  where
+    astr l o r = astBin o l r
+    astl o r l = astBin o l r
+    uber ((op, opType):ops) = let term = uber ops in
+      case opType of
+        Binary LeftAssoc  -> foldl (&) <$> term <*> many (astl <$> op <*> term)
+        Binary RightAssoc -> flip (foldr ($)) <$> many (astr <$> term <*> op) <*> term <|> term
+        Binary NoAssoc    -> astr <$> term <*> op <*> term <|> term
+        Unary             -> option id (astUn <$> op) <*> term
+    uber [] = atom
+
 parseExpr :: Parser String String AST
-parseExpr = uberExpr ops atom BinOp UnaryOp
+parseExpr = uberExpr' ops atom BinOp UnaryOp
   where
     ops = map (first listToParser)
               [ ([Or], Binary RightAssoc)

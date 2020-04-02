@@ -49,9 +49,12 @@ instance Monoid error => MonadFail (Parser error input) where
 
 -- Применяет парсер ко всей последовательности
 parseMaybe :: Parser e [t] a -> [t] -> Maybe a
-parseMaybe p i = case runParser p i of
-  Success [] x -> Just x
-  _            -> Nothing
+parseMaybe = parse
+
+parse :: Alternative f => Parser e [t] a -> [t] -> f a
+parse p i = case runParser p i of
+  Success [] x -> pure x
+  _            -> empty
 
 -- Принимает последовательность элементов, разделенных разделителем
 -- Первый аргумент -- парсер для разделителя
