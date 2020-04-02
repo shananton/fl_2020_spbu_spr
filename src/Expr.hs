@@ -38,9 +38,9 @@ uberExpr allOps atom astBin astUn = uber allOps
     uber ((op, opType):ops) = let term = uber ops in
       case opType of
         Binary LeftAssoc  -> foldl (&) <$> term <*> many (astl <$> op <*> term)
-        Binary RightAssoc -> flip (foldr ($)) <$> many (astr <$> term <*> op) <*> term
+        Binary RightAssoc -> flip (foldr ($)) <$> many (astr <$> term <*> op) <*> term <|> term
         Binary NoAssoc    -> astr <$> term <*> op <*> term <|> term
-        Unary             -> flip (foldr ($)) <$> many (astUn <$> op) <*> term
+        Unary             -> option id (astUn <$> op) <*> term
     uber [] = atom
 
 expr :: Parser String [Token] AST
