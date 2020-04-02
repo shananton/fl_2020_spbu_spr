@@ -27,6 +27,7 @@ dependencies:
 - tasty-hedgehog
 - tasty-hunit
 - tasty-discover
+- mtl
 
 library:
   source-dirs: src
