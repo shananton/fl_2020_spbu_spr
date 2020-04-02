@@ -61,7 +61,7 @@ wspace -> ' ' | '\t'
     # вместо этого, будет найден '/=', а затем разбор завершится неудачей.
     #
     # Скобки для удобства также включены в число операторов.
-    op -> '==' | '/=' | '>=' | '<=' | '&&' | '||' | '<' | '>' | '+' | '-' | '*' | '/' | '^' | '=' | '(' | ')' | ',' 
+    op -> '==' | '/=' | '>=' | '<=' | '&&' | '||' | '<' | '>' | '+' | '-' | '*' | '/' | '^' | '=' | '(' | ')' | ',' | '!'
 
     kword -> ('if' | 'then' | 'else' | 'while' | 'do' | 'read' | 'write') [!alnum]
 
@@ -130,13 +130,13 @@ if_full -> 'if' expr 'then' NL block ('else' NL block)?
 if_short -> 'if' expr 'then' inline_block ('else' inline_block)? NL
 
 # Названия тоже из питона, извините (они хорошие!!!)
+# Допустимо использовать несколько унарных операторов одного приоритета подряд
 expr -> or_test
 or_test -> (or_test '||')? and_test
 and_test -> (and_test '&&')? comp_test
-comp_test -> arith_expr | arith_expr ('==' | '/=' | '<=' | '>=' | '<' | '>') arith_expr
+comp_test -> '!' comp_test | arith_expr | arith_expr ('==' | '/=' | '<=' | '>=' | '<' | '>') arith_expr
 arith_expr -> term (('+' | '-') arith_expr)?
 term -> factor (('*' | '/') term)?
-# Унарные операторы, допустимо использовать несколько подряд
 factor -> ('+' | '-') factor | (factor '^')? atom
 atom -> '(' expr ')' | IDENT | NAT
 ```
