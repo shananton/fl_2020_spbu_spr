@@ -65,13 +65,50 @@ expr = uberExpr ops atom BinOp UnaryOp
 
 -- Парсеры, чтобы пройти тесты -_-
 
--- Парсер для выражений над +, -, *, /, ^ (возведение в степень)
--- с естественными приоритетами и ассоциативностью над натуральными числами с 0.
--- В строке могут быть скобки
+
+arithRepr :: EnumStringRepr Operator
+arithRepr = 
+  [ (Plus, "+")
+  , (Mult, "*")
+  , (Minus, "-")
+  , (Div, "/")
+  , (Pow, "^")
+  , (Equal, "==")
+  , (Nequal, "/=")
+  , (Gt, ">")
+  , (Ge, ">=")
+  , (Lt, "<")
+  , (Le, "<=")
+  , (And, "&&")
+  , (Or, "||")
+  , (Not, "!")
+  ]
+
 parseExpr :: Parser String String AST
-parseExpr = Parser
-  $ maybe (Failure "parseExpr failed") (Success "")
-  . (parseMaybe lexAll >=> parseMaybe (expr <* symbol (TSep Newline)))
+parseExpr = uberExpr ops atom BinOp UnaryOp
+  where
+    ops = map (first listToParser)
+              [ ([Or], Binary RightAssoc)
+              , ([And], Binary RightAssoc)
+              , ([Not], Unary)
+              , ([Equal, Nequal, Le, Lt, Ge, Gt], Binary NoAssoc)
+              , ([Plus, Minus], Binary LeftAssoc)
+              , ([Mult, Div], Binary LeftAssoc)
+              , ([Minus], Unary)
+              , ([Pow], Binary RightAssoc)
+              ]
+      where
+        listToParser = getAlt . foldMap (Alt . elemP)
+          where
+            elemP x = x <$ string (fromJust $ lookup x arithRepr)
+    atom = Num <$> nat 
+      <|> Ident <$> ident 
+      <|> symbol '(' *> parseExpr <* symbol ')'
+
+-- parseExpr :: Parser String String AST
+-- parseExpr = Parser
+--   $ maybe (Failure "parseExpr failed") (Success "")
+--   . (parseMaybe lexAll >=> parseMaybe (expr <* symbol (TSep Newline)))
 
 -- Парсер для целых чисел
 parseNum :: Parser String String Int
