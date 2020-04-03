@@ -2,10 +2,13 @@ module LLang where
 
 import AST (AST (..), Operator (..))
 import Combinators (Parser (..))
+import Data.Map (Map (..))
 
 type Expr = AST
 
 type Var = String
+
+data Configuration = Conf { subst :: Map Var Int, input :: [Int], output :: [Int] }
 
 data LAst
   = If { cond :: Expr, thn :: LAst, els :: LAst }
@@ -33,3 +36,6 @@ stmt =
 
 parseL :: Parser String String LAst
 parseL = error "parseL undefined"
+
+eval :: String -> Configuration -> Configuration
+eval = error "eval not defined"
