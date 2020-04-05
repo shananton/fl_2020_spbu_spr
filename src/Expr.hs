@@ -1,9 +1,10 @@
 module Expr where
 
-import           AST         (AST (..), Operator (..))
+import           AST         (AST (..), Operator (..), Subst (..))
 import           Combinators (Parser (..), Result (..), bind', elem', fail',
                               fmap', satisfy, some', success)
 import           Data.Char   (digitToInt, isDigit)
+import qualified Data.Map as Map
 
 data Associativity
   = LeftAssoc  -- 1 @ 2 @ 3 @ 4 = (((1 @ 2) @ 3) @ 4)
@@ -12,6 +13,9 @@ data Associativity
 
 data OpType = Binary Associativity
             | Unary
+
+evalExpr :: Subst -> AST -> Maybe Int
+evalExpr = error "evalExpr undefined"
 
 uberExpr :: Monoid e
          => [(Parser e i op, OpType)] -- список операций с их арностью и, в случае бинарных, ассоциативностью
