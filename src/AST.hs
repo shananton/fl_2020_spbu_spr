@@ -1,6 +1,6 @@
 module AST where
 
-import qualified Data.Map as Map
+import qualified Data.Map    as Map
 import           Text.Printf (printf)
 
 data Operator = Plus

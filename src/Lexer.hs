@@ -5,11 +5,11 @@ import qualified AST                 as A
 import           Combinators
 import           Control.Applicative
 import           Control.Monad.State
+import           Data.Char           (digitToInt, isDigit, isHexDigit)
 import           Data.Functor
+import           Data.List           (sortOn)
 import           Data.Monoid         (Alt (..))
-import Data.Char (isDigit, isHexDigit, digitToInt)
-import Data.Ord (Down (..))
-import Data.List (sortOn)
+import           Data.Ord            (Down (..))
 
 -- Наборы символов
 

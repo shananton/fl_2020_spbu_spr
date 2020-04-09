@@ -1,10 +1,10 @@
 module Test.LLang where
 
-import Combinators         (Parser, Result (..), elem', runParser,
-                                   satisfy, sepBy1, symbol, parse)
 import           AST
+import           Combinators      (Parser, Result (..), elem', parse, runParser,
+                                   satisfy, sepBy1, symbol)
+import qualified Expr             as E
 import           LLang
-import qualified Expr as E
 
 import qualified Data.Map         as Map
 import           Test.Tasty.HUnit (Assertion, assertBool, (@?=))

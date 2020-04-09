@@ -5,17 +5,16 @@ import           Combinators
 import           Lexer
 
 import           Control.Applicative (many, some, (<|>))
-import Data.Maybe (maybe)
-import Control.Monad ((>=>))
+import           Control.Monad       ((>=>))
 import           Data.Bifunctor      (first)
 import           Data.Char           (digitToInt, isAlpha, isAlphaNum, isDigit,
                                       isHexDigit)
 import           Data.Function       ((&))
 import           Data.Functor        (($>))
+import qualified Data.Map            as Map
 import           Data.Maybe          (fromJust, maybe)
 import           Data.Monoid         (Alt (..))
 import           Data.Tuple          (swap)
-import qualified Data.Map as Map
 
 data Associativity
   = LeftAssoc  -- 1 @ 2 @ 3 @ 4 = (((1 @ 2) @ 3) @ 4)

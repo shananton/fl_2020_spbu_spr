@@ -1,19 +1,19 @@
 module LLang where
 
-import AST (AST (..), Operator (..), Subst (..))
-import Combinators
-import Expr
-import Lexer hiding (Assign)
-import qualified Lexer as L
+import           AST                 (AST (..), Operator (..), Subst (..))
+import           Combinators
+import           Expr
+import           Lexer               hiding (Assign)
+import qualified Lexer               as L
 
+import           Control.Applicative
 import           Control.Monad       ((>=>))
-import Control.Monad.State
-import Control.Applicative
-import Data.Maybe (maybe)
-import Data.Bool (bool)
-import qualified Data.Map as Map
-import           Data.List   (intercalate)
-import           Text.Printf (printf)
+import           Control.Monad.State
+import           Data.Bool           (bool)
+import           Data.List           (intercalate)
+import qualified Data.Map            as Map
+import           Data.Maybe          (maybe)
+import           Text.Printf         (printf)
 
 type Expr = AST
 

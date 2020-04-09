@@ -4,10 +4,10 @@ import           AST                 (AST (..), Operator (..))
 import           Combinators         (Parser (..), Result (..), runParser,
                                       symbol)
 import           Control.Applicative ((<|>))
+import           Control.Monad       ((>=>))
+import           Data.Maybe          (maybe)
 import           Expr
-import           Test.Tasty.HUnit    (Assertion, (@?=), assertBool)
-import Control.Monad ((>=>))
-import Data.Maybe (maybe)
+import           Test.Tasty.HUnit    (Assertion, assertBool, (@?=))
 
 isFailure (Failure _) = True
 isFailure  _          = False

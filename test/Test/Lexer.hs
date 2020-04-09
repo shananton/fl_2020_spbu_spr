@@ -1,13 +1,13 @@
 module Test.Lexer where
 
-import Combinators         (Parser, Result (..), elem', runParser,
-                                   satisfy, sepBy1, symbol, parse)
-import AST
-import Lexer
+import           AST
+import           Combinators         (Parser, Result (..), elem', parse,
+                                      runParser, satisfy, sepBy1, symbol)
+import           Lexer
 
-import Test.Tasty.HUnit    (Assertion, (@?=), assertBool)
+import           Test.Tasty.HUnit    (Assertion, assertBool, (@?=))
 
-import Control.Applicative (some, many)
+import           Control.Applicative (many, some)
 
 isFailure (Failure _) = True
 isFailure  _          = False

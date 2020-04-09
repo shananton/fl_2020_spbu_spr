@@ -25,12 +25,12 @@ instance Applicative (Parser error input) where
   pure x = Parser $ \s -> Success s x
 
   Parser p1 <*> Parser p2 = Parser $ \s -> case p1 s of
-    Failure e -> Failure e
+    Failure e   -> Failure e
     Success i r -> r <$> p2 i
 
 instance Monad (Parser error input) where
   Parser x >>= k = Parser $ \s -> case x s of
-    Failure e -> Failure e
+    Failure e   -> Failure e
     Success i r -> runParser (k r) i
 
 instance Monoid error => Alternative (Parser error input) where
@@ -39,7 +39,7 @@ instance Monoid error => Alternative (Parser error input) where
   Parser p1 <|> Parser p2 = Parser $ \s -> case p1 s of
     Failure e -> case p2 s of
       Failure e' -> Failure $ e <> e'
-      x -> x
+      x          -> x
     x -> x
 
 instance Monoid error => MonadPlus (Parser error input)
@@ -106,7 +106,7 @@ scout p = Parser $ \case
 shouldFail :: Parser e i r -> Parser String i ()
 shouldFail p = Parser $ \input -> case runParser p input of
   Success _ _ -> Failure "Avoided parser succeeded"
-  _ -> Success input ()
+  _           -> Success input ()
 
 -- Проверяет, что в начале входного потока нет символа, удовлетворяющего предикату
 avoid :: (a -> Bool) -> Parser String [a] ()
