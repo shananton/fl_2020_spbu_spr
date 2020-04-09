@@ -78,9 +78,9 @@ eval :: LAst -> Configuration -> Maybe Configuration
 eval p = execStateT (evalM p) where
   evalM :: LAst -> StateT Configuration Maybe ()
   evalM (If cond thn els) =
-    toEnum <$> evalExprM cond >>= bool (evalM els) (evalM thn)
+    (/= 0) <$> evalExprM cond >>= bool (evalM els) (evalM thn)
   evalM while@(While cond body) =
-    toEnum <$> evalExprM cond >>= (`when` (evalM body >> evalM while))
+    (/= 0) <$> evalExprM cond >>= (`when` (evalM body >> evalM while))
   evalM (Assign v e) = do
     x <- evalExprM e
     c@Conf { subst = s } <- get

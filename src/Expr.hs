@@ -5,6 +5,8 @@ import           Combinators
 import           Lexer
 
 import           Control.Applicative (many, some, (<|>))
+import Data.Maybe (maybe)
+import Control.Monad ((>=>))
 import           Data.Bifunctor      (first)
 import           Data.Char           (digitToInt, isAlpha, isAlphaNum, isDigit,
                                       isHexDigit)
@@ -32,7 +34,7 @@ evalExpr s = eval where
   eval (UnaryOp op e) =
     let unOps =
           [ (Minus, negate)
-          , (Not, fromEnum . not . toEnum)
+          , (Not, fromEnum . (== 0))
           ] in
     lookup op unOps <*> eval e
 
@@ -54,7 +56,7 @@ evalExpr s = eval where
           ] in
     lookup op binOps <*> eval el <*> eval er
       where
-        boolean f x y = fromEnum $ f (toEnum x) (toEnum y)
+        boolean f x y = fromEnum $ f (x /= 0) (y /= 0)
         (.-) = (.) . (.)
 
 
@@ -100,4 +102,6 @@ expr = uberExpr ops atom BinOp UnaryOp
 -- с естественными приоритетами и ассоциативностью над натуральными числами с 0.
 -- В строке могут быть скобки
 parseExpr :: Parser String String AST
-parseExpr = error "parseExpr undefined"
+parseExpr = Parser
+  $ maybe (Failure "parseExpr failed") (Success "")
+  . (parseMaybe lexAll >=> parseMaybe (expr <* symbol (TSep Newline)))
