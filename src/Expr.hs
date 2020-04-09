@@ -32,7 +32,8 @@ evalExpr s = eval where
 
   eval (UnaryOp op e) =
     let unOps =
-          [ (Minus, negate)
+          [ (Plus, id)
+          , (Minus, negate)
           , (Not, fromEnum . (== 0))
           ] in
     lookup op unOps <*> eval e
@@ -87,7 +88,7 @@ expr = uberExpr ops atom BinOp UnaryOp
               , ([Equal, Nequal, Lt, Le, Gt, Ge], Binary NoAssoc)
               , ([Plus, Minus], Binary LeftAssoc)
               , ([Mult, Div], Binary LeftAssoc)
-              , ([Minus], Unary)
+              , ([Plus, Minus], Unary)
               , ([Pow], Binary RightAssoc)
               ]
       where
