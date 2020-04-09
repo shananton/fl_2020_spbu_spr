@@ -28,6 +28,7 @@ dependencies:
 - tasty-hunit
 - tasty-discover
 - containers
+- mtl
 
 library:
   source-dirs: src
