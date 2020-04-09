@@ -1,0 +1,12 @@
+./
+read n;
+read ans;
+while (n>1) ./
+    read x;
+    if (x>ans) ./
+        bind ans (x);
+    \../\.;
+    bind n (n-1);
+\.;
+write (ans);
+\.

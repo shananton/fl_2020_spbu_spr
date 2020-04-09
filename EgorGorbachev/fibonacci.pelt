@@ -1,0 +1,12 @@
+{
+read n;
+assign cur (0);
+assign next (1);
+while (n) {
+    assign tmp (next);
+    assign next (cur + next);
+    assign cur (tmp);
+    assign n (n - 1);
+};
+print (cur);
+}

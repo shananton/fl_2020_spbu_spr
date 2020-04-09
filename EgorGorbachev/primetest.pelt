@@ -1,0 +1,13 @@
+{
+read n;
+assign i (2);
+assign cont_flag (1);
+while (i * i <= n && cont_flag) {
+    assign rem (n - n / i * i);
+    if (!rem) {
+        assign cont_flag (0);
+    } else {};
+    assign i (i + 1);
+};
+print (cont_flag);
+}

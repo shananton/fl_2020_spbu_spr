@@ -1,0 +1,12 @@
+./
+read n;
+bind ans (0);
+bind ans' (1);
+while (n) ./
+    bind tmp (ans');
+    bind ans' (ans+ans');
+    bind ans (tmp);
+    bind n (n-1);
+\.;
+write (ans);
+\.
