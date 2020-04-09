@@ -1,9 +1,20 @@
 module Expr where
 
-import           AST         (AST (..), Operator (..), Subst (..))
-import           Combinators (Parser (..), Result (..), bind', elem', fail',
-                              fmap', satisfy, some', success)
-import           Data.Char   (digitToInt, isDigit)
+import           AST                 (AST (..), Operator (..))
+import           Combinators
+import           Lexer
+
+import           Control.Applicative (many, some, (<|>))
+import           Control.Monad       ((>=>))
+import           Control.Monad.State (StateT (..))
+import           Data.Bifunctor      (first)
+import           Data.Char           (digitToInt, isAlpha, isAlphaNum, isDigit,
+                                      isHexDigit)
+import           Data.Function       ((&))
+import           Data.Functor        (($>))
+import           Data.Maybe          (fromJust, maybe)
+import           Data.Monoid         (Alt (..))
+import           Data.Tuple          (swap)
 import qualified Data.Map as Map
 
 data Associativity
@@ -23,7 +34,17 @@ uberExpr :: Monoid e
          -> (op -> ast -> ast -> ast) -- конструктор узла дерева для бинарной операции
          -> (op -> ast -> ast)        -- конструктор узла для унарной операции
          -> Parser e i ast
-uberExpr = error "uberExpr undefined"
+uberExpr allOps atom astBin astUn = uber allOps
+  where
+    astr l o r = astBin o l r
+    astl o r l = astBin o l r
+    uber ((op, opType):ops) = let term = uber ops in
+      case opType of
+        Binary LeftAssoc  -> foldl (&) <$> term <*> many (astl <$> op <*> term)
+        Binary RightAssoc -> flip (foldr ($)) <$> many (astr <$> term <*> op) <*> term
+        Binary NoAssoc    -> astr <$> term <*> op <*> term <|> term
+        Unary             -> flip (foldr ($)) <$> many (astUn <$> op) <*> term
+    uber [] = atom
 
 
 -- Парсер для выражений над +, -, *, /, ^ (возведение в степень)
@@ -31,39 +52,3 @@ uberExpr = error "uberExpr undefined"
 -- В строке могут быть скобки
 parseExpr :: Parser String String AST
 parseExpr = error "parseExpr undefined"
-
--- Парсер для целых чисел
-parseNum :: Parser String String Int
-parseNum = foldl (\acc d -> 10 * acc + digitToInt d) 0 `fmap'` go
-  where
-    go :: Parser String String String
-    go = some' (satisfy isDigit)
-
-parseIdent :: Parser String String String
-parseIdent = error "parseIdent undefined"
-
--- Парсер для операторов
-parseOp :: Parser String String Operator
-parseOp = elem' `bind'` toOperator
-
--- Преобразование символов операторов в операторы
-toOperator :: Char -> Parser String String Operator
-toOperator '+' = success Plus
-toOperator '*' = success Mult
-toOperator '-' = success Minus
-toOperator '/' = success Div
-toOperator _   = fail' "Failed toOperator"
-
-evaluate :: String -> Maybe Int
-evaluate input = do
-  case runParser parseExpr input of
-    Success rest ast | null rest -> return $ compute ast
-    _                            -> Nothing
-
-compute :: AST -> Int
-compute (Num x)           = x
-compute (BinOp Plus x y)  = compute x + compute y
-compute (BinOp Mult x y)  = compute x * compute y
-compute (BinOp Minus x y) = compute x - compute y
-compute (BinOp Div x y)   = compute x `div` compute y
-
