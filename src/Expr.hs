@@ -1,6 +1,6 @@
 module Expr where
 
-import           AST                 (AST (..), Operator (..))
+import           AST                 (AST (..), Operator (..), Subst (..))
 import           Combinators
 import           Lexer
 
