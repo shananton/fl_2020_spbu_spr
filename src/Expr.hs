@@ -46,6 +46,25 @@ uberExpr allOps atom astBin astUn = uber allOps
         Unary             -> flip (foldr ($)) <$> many (astUn <$> op) <*> term
     uber [] = atom
 
+expr :: Parser String [Token] AST
+expr = uberExpr ops atom BinOp UnaryOp
+  where
+    ops = map (first listToParser)
+              [ ([Or], Binary RightAssoc)
+              , ([And], Binary RightAssoc)
+              , ([Not], Unary)
+              , ([Equal, Nequal, Lt, Le, Gt, Ge], Binary NoAssoc)
+              , ([Plus, Minus], Binary LeftAssoc)
+              , ([Mult, Div], Binary LeftAssoc)
+              , ([Minus], Unary)
+              , ([Pow], Binary RightAssoc)
+              ]
+      where
+        listToParser = fmap (getArith . getOperator) . getAlt
+          . foldMap (Alt . symbol . TOperator . Arith)
+    atom = Num . getInt <$> satisfy isInt
+        <|> Ident . getId <$> satisfy isId
+        <|> symbol (TOperator LPar) *> expr <* symbol (TOperator RPar)
 
 -- Парсер для выражений над +, -, *, /, ^ (возведение в степень)
 -- с естественными приоритетами и ассоциативностью над натуральными числами с 0.
