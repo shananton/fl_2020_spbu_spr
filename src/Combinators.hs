@@ -1,100 +1,129 @@
+{-# LANGUAGE LambdaCase #-}
+
 module Combinators where
 
 import           Control.Applicative
+import           Control.Monad
+import           Control.Monad.Fail
 
 data Result error input result
   = Success input result
   | Failure error
   deriving (Show, Eq)
 
+instance Functor (Result error input) where
+  fmap f (Success i r) = Success i (f r)
+  fmap f (Failure e)   = Failure e
+
 newtype Parser error input result
   = Parser { runParser :: input -> Result error input result }
 
 instance Functor (Parser error input) where
-  fmap = error "fmap not implemented"
+  fmap f = Parser . fmap (fmap f) . runParser
 
 instance Applicative (Parser error input) where
-  pure = error "pure not implemented"
-  (<*>) = error "<*> not implemented"
+  pure x = Parser $ \s -> Success s x
+
+  Parser p1 <*> Parser p2 = Parser $ \s -> case p1 s of
+    Failure e -> Failure e
+    Success i r -> r <$> p2 i
 
 instance Monad (Parser error input) where
-  return = error "return not implemented"
-
-  (>>=) = error ">>= not implemented"
+  Parser x >>= k = Parser $ \s -> case x s of
+    Failure e -> Failure e
+    Success i r -> runParser (k r) i
 
 instance Monoid error => Alternative (Parser error input) where
-  empty = error "empty not implemented"
+  empty = Parser $ const $ Failure mempty
 
-  (<|>) = error "<|> not implemented"
+  Parser p1 <|> Parser p2 = Parser $ \s -> case p1 s of
+    Failure e -> case p2 s of
+      Failure e' -> Failure $ e <> e'
+      x -> x
+    x -> x
+
+instance Monoid error => MonadPlus (Parser error input)
+
+instance Monoid error => MonadFail (Parser error input) where
+  fail _ = empty
+
+-- Применяет парсер ко всей последовательности
+parseMaybe :: Parser e [t] a -> [t] -> Maybe a
+parseMaybe = parse
+
+parse :: Alternative f => Parser e [t] a -> [t] -> f a
+parse p i = case runParser p i of
+  Success [] x -> pure x
+  _            -> empty
 
 -- Принимает последовательность элементов, разделенных разделителем
 -- Первый аргумент -- парсер для разделителя
 -- Второй аргумент -- парсер для элемента
 -- В последовательности должен быть хотя бы один элемент
-sepBy1 :: Parser e i sep -> Parser e i a -> Parser e i [a]
-sepBy1 sep elem = error "sepBy1 not implemented"
-
--- Альтернатива: в случае неудачи разбора первым парсером, парсит вторым
-alt' :: Parser e i a -> Parser e i a -> Parser e i a
-alt' p q = Parser $ \input ->
-  case runParser p input of
-    Failure _ -> runParser q input
-    x         -> x
-
--- Последовательное применение парсеров:
--- если первый парсер успешно принимает префикс строки, второй запускается на суффиксе.
--- Второй парсер использует результат первого.
-bind' :: Parser e i a
-      -> (a -> Parser e i b)
-      -> Parser e i b
-bind' p f = Parser $ \input ->
-  case runParser p input of
-    Success i r -> runParser (f r) i
-    Failure e   -> Failure e
+sepBy1 :: Monoid e => Parser e i sep -> Parser e i a -> Parser e i [a]
+sepBy1 sep elem = (:) <$> elem
+  <*> many (sep *> elem)
 
 -- Проверяет, что первый элемент входной последовательности -- данный символ
-symbol :: Char -> Parser String String Char
+symbol :: Eq a => a -> Parser String [a] a
 symbol c = satisfy (== c)
 
+-- Принимает заданную строку
+string :: String -> Parser String String String
+string = foldr ((<*>) . fmap (:) . symbol) (pure "")
+
 -- Успешно завершается, если последовательность содержит как минимум один элемент
-elem' :: (Show a) => Parser String [a] a
+elem' :: Parser String [a] a
 elem' = satisfy (const True)
 
+-- Проверяет, что первый элемент принадлежит списку
+oneOf :: Eq a => [a] -> Parser String [a] a
+oneOf = satisfy . flip elem
+
 -- Проверяет, что первый элемент входной последовательности удовлетворяет предикату
-satisfy :: Show a => (a -> Bool) -> Parser String [a] a
-satisfy p = Parser $ \input ->
-  case input of
-    (x:xs) | p x -> Success xs x
-    []           -> Failure $ "Empty string"
-    (x:xs)       -> Failure $ "Predicate failed"
+satisfy :: (a -> Bool) -> Parser String [a] a
+satisfy p = Parser $ \case
+  (x:xs)
+    | p x -> Success xs x
+  [] -> Failure "Empty string"
+  _ -> Failure "Predicate failed"
 
--- Успешно парсит пустую строку
-epsilon :: Parser e i ()
-epsilon = success ()
+-- Возвращает первый символ, оставляя его во входной последовательности.
+peek :: Parser String String Char
+peek = scout (const True)
 
--- Всегда завершается успехом, вход не читает, возвращает данное значение
-success :: a -> Parser e i a
-success a = Parser $ \input -> Success input a
+-- Проверяет, что первый элемент входной последовательности удовлетворяет предикату,
+-- оставляя его во входной последовательности.
+scout :: (a -> Bool) -> Parser String [a] a
+scout p = Parser $ \case
+  xs@(x:_)
+    | p x -> Success xs x
+  [] -> Failure "Empty string"
+  _ -> Failure "Predicate failed"
+
+-- Успешен тогда и только тогда, когда переданный парсер завершается неудачей.
+-- Не изменяет входную последовательность.
+shouldFail :: Parser e i r -> Parser String i ()
+shouldFail p = Parser $ \input -> case runParser p input of
+  Success _ _ -> Failure "Avoided parser succeeded"
+  _ -> Success input ()
+
+-- Проверяет, что в начале входного потока нет символа, удовлетворяющего предикату
+avoid :: (a -> Bool) -> Parser String [a] ()
+avoid = shouldFail . scout
+
+-- Игнорирует результат парсера
+ignore :: Parser e i a -> Parser e i ()
+ignore = (() <$)
+
+-- Применяет парсер, при неудаче возвращая значение по умолчанию
+option :: Monoid e => a -> Parser e i a -> Parser e i a
+option x = (<|> pure x)
+
+-- Версия option_, игнорирующая результат
+option_ :: Monoid e => Parser e i a -> Parser e i ()
+option_ = option () . ignore
 
 -- Всегда завершается ошибкой
 fail' :: e -> Parser e i a
 fail' = Parser . const . Failure
-
--- Проверяет, что первый элемент входной последовательности -- данный символ
-fmap' :: (a -> b) -> Parser e i a -> Parser e i b
-fmap' f p = Parser $ \input ->
-  case runParser p input of
-    Success i a -> Success i (f a)
-    Failure e   -> Failure e
-
--- Последовательное применения одного и того же парсера 1 или более раз
-some' :: Parser e i a -> Parser e i [a]
-some' p =
-  p `bind'` \a ->
-  many' p `bind'` \as ->
-  success (a : as)
-
--- Последовательное применение одного и того же парсера 0 или более раз
-many' :: Parser e i a -> Parser e i [a]
-many' p =
-  some' p `alt'` success []
