@@ -5,8 +5,6 @@ import           Combinators
 import           Lexer
 
 import           Control.Applicative (many, some, (<|>))
-import           Control.Monad       ((>=>))
-import           Control.Monad.State (StateT (..))
 import           Data.Bifunctor      (first)
 import           Data.Char           (digitToInt, isAlpha, isAlphaNum, isDigit,
                                       isHexDigit)
@@ -26,7 +24,39 @@ data OpType = Binary Associativity
             | Unary
 
 evalExpr :: Subst -> AST -> Maybe Int
-evalExpr = error "evalExpr undefined"
+evalExpr s = eval where
+
+  eval (Num x) = Just x
+  eval (Ident v) = Map.lookup v s
+
+  eval (UnaryOp op e) =
+    let unOps =
+          [ (Minus, negate)
+          , (Not, fromEnum . not . toEnum)
+          ] in
+    lookup op unOps <*> eval e
+
+  eval (BinOp op el er) =
+    let binOps =
+          [ (Plus, (+))
+          , (Mult, (*))
+          , (Minus, (-))
+          , (Div, div)
+          , (Pow, (^))
+          , (Equal, fromEnum .- (==))
+          , (Nequal, fromEnum .- (/=))
+          , (Gt, fromEnum .- (>))
+          , (Ge, fromEnum .- (>=))
+          , (Lt, fromEnum .- (<))
+          , (Le, fromEnum .- (<=))
+          , (And, boolean (&&))
+          , (Or, boolean (||))
+          ] in
+    lookup op binOps <*> eval el <*> eval er
+      where
+        boolean f x y = fromEnum $ f (toEnum x) (toEnum y)
+        (.-) = (.) . (.)
+
 
 uberExpr :: Monoid e
          => [(Parser e i op, OpType)] -- список операций с их арностью и, в случае бинарных, ассоциативностью
