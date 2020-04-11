@@ -1,10 +1,11 @@
 module Expr where
 
-import           AST         (AST (..), Operator (..), Subst (..))
-import           Combinators (Parser (..), Result (..), bind', elem', fail',
-                              fmap', satisfy, some', success)
-import           Data.Char   (digitToInt, isDigit)
-import qualified Data.Map as Map
+import           AST                 (AST (..), Operator (..), Subst (..))
+import           Combinators         (Parser (..), Result (..), fail',
+                                      runParser, satisfy, stream, success)
+import           Control.Applicative
+import           Data.Char           (digitToInt, isDigit)
+import qualified Data.Map            as Map
 
 data Associativity
   = LeftAssoc  -- 1 @ 2 @ 3 @ 4 = (((1 @ 2) @ 3) @ 4)
@@ -34,31 +35,22 @@ parseExpr = error "parseExpr undefined"
 
 -- Парсер для целых чисел
 parseNum :: Parser String String Int
-parseNum = foldl (\acc d -> 10 * acc + digitToInt d) 0 `fmap'` go
+parseNum = foldl (\acc d -> 10 * acc + digitToInt d) 0 <$> go
   where
     go :: Parser String String String
-    go = some' (satisfy isDigit)
+    go = some (satisfy isDigit)
+
+parseNegNum :: Parser String String Int
+parseNegNum = error "parseNegNum undefined"
 
 parseIdent :: Parser String String String
 parseIdent = error "parseIdent undefined"
 
--- Парсер для операторов
-parseOp :: Parser String String Operator
-parseOp = elem' `bind'` toOperator
-
--- Преобразование символов операторов в операторы
-toOperator :: Char -> Parser String String Operator
-toOperator '+' = success Plus
-toOperator '*' = success Mult
-toOperator '-' = success Minus
-toOperator '/' = success Div
-toOperator _   = fail' "Failed toOperator"
-
 evaluate :: String -> Maybe Int
 evaluate input = do
   case runParser parseExpr input of
-    Success rest ast | null rest -> return $ compute ast
-    _                            -> Nothing
+    Success rest ast | null (stream rest) -> return $ compute ast
+    _                                     -> Nothing
 
 compute :: AST -> Int
 compute (Num x)           = x
