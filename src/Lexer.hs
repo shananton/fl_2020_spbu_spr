@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 module Lexer where
 
 import qualified AST                 as A
@@ -10,6 +12,15 @@ import           Data.Monoid         (Alt (..))
 import Data.Char (isDigit, isHexDigit, digitToInt)
 import Data.Ord (Down (..))
 import Data.List (sortOn)
+import Control.Monad.Except
+
+parseRaw :: (Show (ErrorMsg e), MonadError String m) =>
+  Parser e [Token] a -> String -> m a
+parseRaw p = parse lexAll >=> parse p
+
+parseRawEither :: (Show (ErrorMsg e)) =>
+  Parser e [Token] a -> String -> Either String a
+parseRawEither = parseRaw
 
 -- Наборы символов
 
@@ -193,5 +204,5 @@ lexAll = evalStateT lexLines [0]
 
     lexLines :: StateT IndentLevels (Parser String String) [Token]
     lexLines = (++)
-      <$> (concat <$> many (lift (notEof) *> lexLine))
+      <$> (concat <$> many (lift notEof *> lexLine))
       <*> dedentTo 0

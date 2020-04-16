@@ -1,5 +1,5 @@
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Combinators where
 
@@ -7,6 +7,7 @@ import           Control.Applicative
 import           Control.Monad
 import           Control.Monad.Fail
 import           Data.List           (nub, sortOn)
+import           Control.Monad.Except
 
 data Result error input result
   = Success (InputStream input) result
@@ -16,7 +17,7 @@ data Result error input result
 type Position = Int
 
 newtype Parser error input result
-  = Parser { runParser' :: (InputStream input) -> Result error input result }
+  = Parser { runParser' :: InputStream input -> Result error input result }
 
 data InputStream a = InputStream { stream :: a, curPos :: Position }
                    deriving (Show, Eq)
@@ -125,12 +126,20 @@ word w = Parser $ \(InputStream input pos) ->
 
 -- Применяет парсер ко всей последовательности
 parseMaybe :: Parser e [t] a -> [t] -> Maybe a
-parseMaybe = parse
+parseMaybe = parse_
 
-parse :: Alternative f => Parser e [t] a -> [t] -> f a
-parse p i = case runParser p i of
+parse_ :: Alternative f => Parser e [t] a -> [t] -> f a
+parse_ p i = case runParser p i of
   Success (InputStream [] _) x -> pure x
   _                            -> empty
+
+parse :: (Show (ErrorMsg e), MonadError String m) =>
+  Parser e [t] a -> [t] -> m a
+parse p i = case runParser p i of
+  Success (InputStream [] _) x  -> pure x
+  Failure es                    -> throwError $ show es
+  Success (InputStream _ pos) _ -> throwError $
+    "Parser stopped on position " ++ show pos
 
 -- Игнорирует результат парсера
 ignore :: Parser e i a -> Parser e i ()
