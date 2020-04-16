@@ -97,6 +97,12 @@ expr = uberExpr ops atom BinOp UnaryOp
     atom = Num . getInt <$> satisfy isInt
         <|> Ident . getId <$> satisfy isId
         <|> symbol (TOperator LPar) *> expr <* symbol (TOperator RPar)
+        <|> funcCall
+        where
+          funcCall = FunctionCall . getId <$> satisfy isId
+             <* symbol (TOperator LPar)
+            <*> sepBy (symbol (TOperator Comma)) expr
+             <* symbol (TOperator RPar)
 
 -- Парсер для выражений над +, -, *, /, ^ (возведение в степень)
 -- с естественными приоритетами и ассоциативностью над натуральными числами с 0.

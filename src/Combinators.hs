@@ -164,6 +164,9 @@ sepBy1 :: Monoid e => Parser e i sep -> Parser e i a -> Parser e i [a]
 sepBy1 sep elem = (:) <$> elem
   <*> many (sep *> elem)
 
+sepBy :: Monoid e => Parser e i sep -> Parser e i a -> Parser e i [a]
+sepBy sep elem = sepBy1 sep elem <|> pure []
+
 instance Show (ErrorMsg String) where
   show (ErrorMsg e pos) = "at position " ++ show pos ++ ":\n" ++ (unlines $ map ('\t':) (nub e))
 

@@ -10,10 +10,12 @@ import           Control.Applicative
 import           Control.Monad       ((>=>))
 import           Control.Monad.State
 import           Data.Bool           (bool)
-import           Data.List           (intercalate)
+import           Data.List           (intercalate, sortOn, find)
 import qualified Data.Map            as Map
 import           Data.Maybe          (maybe)
+import           Data.Function       (on)
 import           Text.Printf         (printf)
+import           Control.Arrow       ((&&&))
 
 type Expr = AST
 
@@ -36,35 +38,65 @@ data LAst
   | Return { val :: Expr }
   deriving (Eq)
 
-parseL :: Parser String String LAst
-parseL = Parser
-  $ maybe (Failure [makeError "parseL failed" 0]) (Success (InputStream "" 0))
-  . (parseMaybe lexAll >=> parseMaybe program)
-  . stream
+-- parseL :: Parser String String LAst
+-- parseL = Parser
+--   $ maybe (Failure [makeError "parseL failed" 0]) (Success (InputStream "" 0))
+--   . (parseMaybe lexAll >=> parseMaybe program)
+--   . stream
 
-program :: Parser String [Token] LAst
-program = undefined
+program :: Parser String [Token] Program
+program = do
+  functions <- some function
+  "Duplicate definitions found" <?>
+    guard (isUniqueOn (name &&& args) functions)
+  main <- "No main() function found" <?> findMain functions
+  return $ Program (filter (not . isMain) functions) main
+    where
+      findMain functions = do
+        Just main <- pure $ funBody <$> find isMain functions
+        return main
+      isUniqueOn f xs = let sorted = sortOn f xs in
+        and $ zipWith ((/=) `on` f) sorted (tail sorted)
+      isMain = (("main", []) ==) . (name &&& args)
 
-funcBody :: Parser String [Token] LAst
-funcBody = sequence <$> many stmt
+function :: Parser String [Token] Function
+function = functionFull <|> functionShort
   where
-    nl = symbol (TSep Newline)
-    name = getId <$> satisfy isId
-    kw = symbol . TKeyword
-    sep = symbol . TSep
-    op = symbol . TOperator
-    sequence [x] = x
-    sequence xs  = Seq xs
+    functionSignature = Function <$> identifier
+       <* op LPar
+      <*> sepBy (op Comma) identifier
+       <* op RPar
+
+    functionFull = functionSignature <* kw KIs <* nl <*> block
+
+    functionShort = functionSignature <* op L.Assign
+      <*> (Return <$> expr) <* nl
+
+
+block :: Parser String [Token] LAst
+block = sequence <$ sep Indent <*> some stmt <* sep Dedent
+  where
+    sequence xs = case concatMap toList xs of
+      [x] -> x
+      xs  -> Seq xs
+      where
+        toList (Seq ys) = ys
+        toList stmt = [stmt]
 
     stmt = inlineBlock <* nl <|> ifShort <|> ifFull <|> whileShort <|> whileFull
 
     inlineBlock = sequence <$> sepBy1 (op Comma) inlineStmt
-    inlineStmt = inlineAssign <|> inlineRead <|> inlineWrite where
-      inlineAssign = Assign <$> name <* op L.Assign <*> expr
-      inlineRead = Read <$ kw KRead <*> name
-      inlineWrite = Write <$ kw KWrite <*> expr
-
-    block = sequence <$ sep Indent <*> some stmt <* sep Dedent
+    inlineStmt = inlineAssign
+             <|> inlineRead
+             <|> inlineWrite
+             <|> inlineReturn
+             <|> inlineExpr
+      where
+        inlineAssign = Assign <$> identifier <* op L.Assign <*> expr
+        inlineRead = Read <$ kw KRead <*> identifier
+        inlineWrite = Write <$ kw KWrite <*> expr
+        inlineReturn = Return <$ kw KReturn <*> expr
+        inlineExpr = Assign "_" <$> expr
 
     ifShort = If <$ kw KIf <*> expr <* kw KThen
       <*> inlineBlock
@@ -81,6 +113,13 @@ funcBody = sequence <$> many stmt
 
     whileFull = While <$ kw KWhile <*> expr <* kw KDo <* nl
       <*> block
+
+-- Common helper parsers
+nl = symbol (TSep Newline)
+identifier = getId <$> satisfy isId
+kw = symbol . TKeyword
+sep = symbol . TSep
+op = symbol . TOperator
 
 initialConf :: [Int] -> Configuration
 initialConf input = Conf Map.empty input []

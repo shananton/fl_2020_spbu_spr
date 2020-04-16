@@ -96,6 +96,9 @@ data TKeyword
   | KDo
   | KRead
   | KWrite
+  | KPass
+  | KReturn
+  | KIs
   deriving (Eq, Show)
 
 keywordRepr :: EnumStringRepr TKeyword
@@ -107,6 +110,9 @@ keywordRepr = normalize
   , (KDo, "do")
   , (KRead, "read")
   , (KWrite, "write")
+  , (KPass, "pass")
+  , (KReturn, "return")
+  , (KIs, "is")
   ]
 
 keyword :: Parser String String TKeyword
