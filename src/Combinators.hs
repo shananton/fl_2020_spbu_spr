@@ -34,21 +34,30 @@ toStream = InputStream
 incrPos :: InputStream a -> InputStream a
 incrPos (InputStream str pos) = InputStream str (pos + 1)
 
+instance Functor (Result error input) where
+  fmap f (Success i r) = Success i (f r)
+  fmap f (Failure e)   = Failure e
+
+newtype Parser error input result
+  = Parser { runParser :: input -> Result error input result }
+
 instance Functor (Parser error input) where
-  fmap = error "fmap not implemented"
+  fmap f = Parser . fmap (fmap f) . runParser
 
 instance Applicative (Parser error input) where
-  pure = error "pure not implemented"
-  (<*>) = error "<*> not implemented"
+  pure x = Parser $ \s -> Success s x
+
+  Parser p1 <*> Parser p2 = Parser $ \s -> case p1 s of
+    Failure e   -> Failure e
+    Success i r -> r <$> p2 i
 
 instance Monad (Parser error input) where
-  return = error "return not implemented"
-
-  (>>=) = error ">>= not implemented"
+  Parser x >>= k = Parser $ \s -> case x s of
+    Failure e   -> Failure e
+    Success i r -> runParser (k r) i
 
 instance Monoid error => Alternative (Parser error input) where
   empty = Parser $ \input -> Failure [makeError mempty (curPos input)]
-
   Parser a <|> Parser b = Parser $ \input ->
     case a input of
       Success input' r -> Success input' r
@@ -57,9 +66,13 @@ instance Monoid error => Alternative (Parser error input) where
           Failure e' -> Failure $ mergeErrors e e'
           x          -> x
 
+instance Monoid error => MonadPlus (Parser error input)
+
+instance Monoid error => MonadFail (Parser error input) where
+  fail _ = empty
+
 mergeErrors :: (Monoid e) => [ErrorMsg e] -> [ErrorMsg e] -> [ErrorMsg e]
-mergeErrors e e' =
-    merge (sortBy sorting e) (sortBy sorting e')
+mergeErrors e e' = merge (sortOn pos e) (sortOn pos e')
   where
     merge [] s = s
     merge s [] = s
@@ -67,20 +80,18 @@ mergeErrors e e' =
     merge (ErrorMsg e p : xs) e'@(ErrorMsg _ p' : _) | p < p' = ErrorMsg e p : merge xs e'
     merge e@(ErrorMsg _ p : _) (ErrorMsg e' p' : xs) | p > p' = ErrorMsg e' p' : merge xs e
 
-    sorting x y = pos x `compare` pos y
-
 infixl 1 <?>
 (<?>) :: Monoid error => error -> Parser error input a -> Parser error input a
 (<?>) msg (Parser p) = Parser $ \input ->
-    case p input of
-      Failure err -> Failure $ mergeErrors [makeError msg (maximum $ map pos err)] err
-      x -> x
+  case p input of
+    Failure err -> Failure $ mergeErrors [makeError msg (maximum $ map pos err)] err
+    x -> x
 
 -- Проверяет, что первый элемент входной последовательности -- данный символ
-symbol :: Char -> Parser String String Char
+symbol :: (Show a, Eq a) => a -> Parser String [a] a
 symbol c = ("Expected symbol: " ++ show c) <?> satisfy (== c)
 
-eof :: Parser String String ()
+eof :: Parser String [a] ()
 eof = Parser $ \input -> if null $ stream input then Success input () else Failure [makeError "Not eof" (curPos input)]
 
 -- Проверяет, что первый элемент входной последовательности удовлетворяет предикату
@@ -90,24 +101,37 @@ satisfy p = Parser $ \(InputStream input pos) ->
     (x:xs) | p x -> Success (incrPos $ InputStream xs pos) x
     input        -> Failure [makeError "Predicate failed" pos]
 
--- Успешно парсит пустую строку
-epsilon :: Parser e i ()
-epsilon = success ()
-
--- Всегда завершается успехом, вход не читает, возвращает данное значение
-success :: a -> Parser e i a
-success a = Parser $ \input -> Success input a
-
 -- Всегда завершается ошибкой
 fail' :: e -> Parser e i a
 fail' msg = Parser $ \input -> Failure [makeError msg (curPos input)]
 
-word :: String -> Parser String String String
+word :: (Show a, Eq a) => [a] -> Parser String [a] [a]
 word w = Parser $ \(InputStream input pos) ->
   let (pref, suff) = splitAt (length w) input in
   if pref == w
   then Success (InputStream suff (pos + length w)) w
   else Failure [makeError ("Expected " ++ show w) pos]
+
+-- Применяет парсер ко всей последовательности
+parseMaybe :: Parser e [t] a -> [t] -> Maybe a
+parseMaybe = parse
+
+parse :: Alternative f => Parser e [t] a -> [t] -> f a
+parse p i = case runParser p i of
+  Success [] x -> pure x
+  _            -> empty
+
+-- Игнорирует результат парсера
+ignore :: Parser e i a -> Parser e i ()
+ignore = (() <$)
+
+-- Применяет парсер, при неудаче возвращая значение по умолчанию
+option :: Monoid e => a -> Parser e i a -> Parser e i a
+option x = (<|> pure x)
+
+-- Версия option_, игнорирующая результат
+option_ :: Monoid e => Parser e i a -> Parser e i ()
+option_ = option () . ignore
 
 instance Show (ErrorMsg String) where
   show (ErrorMsg e pos) = "at position " ++ show pos ++ ":\n" ++ (unlines $ map ('\t':) (nub e))
