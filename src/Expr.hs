@@ -103,5 +103,6 @@ expr = uberExpr ops atom BinOp UnaryOp
 -- В строке могут быть скобки
 parseExpr :: Parser String String AST
 parseExpr = Parser
-  $ maybe (Failure "parseExpr failed") (Success "")
+  $ maybe (Failure [makeError "parseExpr failed" 0]) (Success (InputStream "" 0))
   . (parseMaybe lexAll >=> parseMaybe (expr <* symbol (TSep Newline)))
+  . stream

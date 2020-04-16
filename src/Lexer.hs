@@ -45,7 +45,7 @@ normalize = sortOn (Down . length . snd)
 
 enum :: EnumStringRepr enum -> Parser String String enum
 enum repr = getAlt $ foldMap (Alt . toParser) repr where
-  toParser (e, s) = e <$ string s
+  toParser (e, s) = e <$ word s
 
 -- Виды токенов
 
@@ -139,7 +139,7 @@ token = TInt <$> nat
 nat :: Parser String String Int
 nat = nat' <* avoid isAlnum
     where
-      nat' = convert 16 <$ (string "0x" <|> string "0X") <*> some hex
+      nat' = convert 16 <$ (word "0x" <|> word "0X") <*> some hex
          <|> convert 10 <$> some digit
       convert b = foldl (\acc x -> b * acc + digitToInt x) 0
 
@@ -147,9 +147,7 @@ nat = nat' <* avoid isAlnum
 ident :: Parser String String String
 ident = (:) <$> alpha <*> many alnum
 
-eof = shouldFail elem'
-
-eol = ignore (string "\r\n") <|> ignore (string "\n") <|> eof
+eol = ignore (word "\r\n") <|> ignore (word "\n") <|> eof
 
 type IndentLevels = [Int]
 
@@ -189,5 +187,5 @@ lexAll = evalStateT lexLines [0]
 
     lexLines :: StateT IndentLevels (Parser String String) [Token]
     lexLines = (++)
-      <$> (concat <$> many (lift (shouldFail eof) *> lexLine))
+      <$> (concat <$> many (lift (notEof) *> lexLine))
       <*> dedentTo 0

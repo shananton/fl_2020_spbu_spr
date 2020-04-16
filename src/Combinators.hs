@@ -1,9 +1,12 @@
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Combinators where
 
 import           Control.Applicative
-import           Data.List           (nub, sortBy)
+import           Control.Monad
+import           Control.Monad.Fail
+import           Data.List           (nub, sortOn)
 
 data Result error input result
   = Success (InputStream input) result
@@ -38,11 +41,8 @@ instance Functor (Result error input) where
   fmap f (Success i r) = Success i (f r)
   fmap f (Failure e)   = Failure e
 
-newtype Parser error input result
-  = Parser { runParser :: input -> Result error input result }
-
 instance Functor (Parser error input) where
-  fmap f = Parser . fmap (fmap f) . runParser
+  fmap f = Parser . fmap (fmap f) . runParser'
 
 instance Applicative (Parser error input) where
   pure x = Parser $ \s -> Success s x
@@ -54,7 +54,7 @@ instance Applicative (Parser error input) where
 instance Monad (Parser error input) where
   Parser x >>= k = Parser $ \s -> case x s of
     Failure e   -> Failure e
-    Success i r -> runParser (k r) i
+    Success i r -> runParser' (k r) i
 
 instance Monoid error => Alternative (Parser error input) where
   empty = Parser $ \input -> Failure [makeError mempty (curPos input)]
@@ -92,7 +92,18 @@ symbol :: (Show a, Eq a) => a -> Parser String [a] a
 symbol c = ("Expected symbol: " ++ show c) <?> satisfy (== c)
 
 eof :: Parser String [a] ()
-eof = Parser $ \input -> if null $ stream input then Success input () else Failure [makeError "Not eof" (curPos input)]
+eof = Parser $ \input ->
+  if null $ stream input then
+   Success input ()
+  else
+    Failure [makeError "Not eof" (curPos input)]
+
+notEof :: Parser String [a] ()
+notEof = Parser $ \input ->
+  if not $ null $ stream input then
+    Success input ()
+  else
+    Failure [makeError "Unexpected eof" (curPos input)]
 
 -- Проверяет, что первый элемент входной последовательности удовлетворяет предикату
 satisfy :: (a -> Bool) -> Parser String [a] a
@@ -118,8 +129,8 @@ parseMaybe = parse
 
 parse :: Alternative f => Parser e [t] a -> [t] -> f a
 parse p i = case runParser p i of
-  Success [] x -> pure x
-  _            -> empty
+  Success (InputStream [] _) x -> pure x
+  _                            -> empty
 
 -- Игнорирует результат парсера
 ignore :: Parser e i a -> Parser e i ()
@@ -132,6 +143,26 @@ option x = (<|> pure x)
 -- Версия option_, игнорирующая результат
 option_ :: Monoid e => Parser e i a -> Parser e i ()
 option_ = option () . ignore
+
+-- Проверяет, что первый элемент входной последовательности удовлетворяет предикату,
+-- оставляя его во входной последовательности.
+scout :: (a -> Bool) -> Parser String [a] a
+scout p = Parser $ \ i@(InputStream input pos) ->
+  case input of
+    (x:xs) | p x -> Success i x
+    input        -> Failure [makeError "Predicate failed" pos]
+
+-- Проверяет, что в начале входного потока нет символа, удовлетворяющего предикату
+avoid :: (a -> Bool) -> Parser String [a] ()
+avoid = (eof <|>) . ignore . scout . fmap not
+
+-- Принимает последовательность элементов, разделенных разделителем
+-- Первый аргумент -- парсер для разделителя
+-- Второй аргумент -- парсер для элемента
+-- В последовательности должен быть хотя бы один элемент
+sepBy1 :: Monoid e => Parser e i sep -> Parser e i a -> Parser e i [a]
+sepBy1 sep elem = (:) <$> elem
+  <*> many (sep *> elem)
 
 instance Show (ErrorMsg String) where
   show (ErrorMsg e pos) = "at position " ++ show pos ++ ":\n" ++ (unlines $ map ('\t':) (nub e))
