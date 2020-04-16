@@ -95,9 +95,9 @@ expr = uberExpr ops atom BinOp UnaryOp
         listToParser = fmap (getArith . getOperator) . getAlt
           . foldMap (Alt . symbol . TOperator . Arith)
     atom = Num . getInt <$> satisfy isInt
+        <|> funcCall
         <|> Ident . getId <$> satisfy isId
         <|> symbol (TOperator LPar) *> expr <* symbol (TOperator RPar)
-        <|> funcCall
         where
           funcCall = FunctionCall . getId <$> satisfy isId
              <* symbol (TOperator LPar)

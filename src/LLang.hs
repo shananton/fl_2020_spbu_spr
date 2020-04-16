@@ -25,8 +25,10 @@ data Configuration = Conf { subst :: Subst, input :: [Int], output :: [Int] }
                    deriving (Show, Eq)
 
 data Program = Program { functions :: [Function], main :: LAst }
+  deriving (Eq)
 
 data Function = Function { name :: String, args :: [Var], funBody :: LAst }
+  deriving (Eq)
 
 data LAst
   = If { cond :: Expr, thn :: LAst, els :: LAst }
@@ -74,7 +76,10 @@ function = functionFull <|> functionShort
 
 
 stmt :: Parser String [Token] LAst
-stmt = inlineBlock <* nl <|> ifShort <|> ifFull <|> whileShort <|> whileFull
+stmt = inlineBlock <* nl
+  <|> ifShort <|> ifFull
+  <|> whileShort <|> whileFull
+  <|> (Seq [] <$ kw KPass <* nl)
   where
     inlineBlock = toSeq <$> sepBy1 (op Comma) inlineStmt
     inlineStmt = inlineAssign
