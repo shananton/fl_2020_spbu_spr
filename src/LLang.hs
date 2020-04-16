@@ -73,24 +73,15 @@ function = functionFull <|> functionShort
       <*> (Return <$> expr) <* nl
 
 
-block :: Parser String [Token] LAst
-block = sequence <$ sep Indent <*> some stmt <* sep Dedent
+stmt :: Parser String [Token] LAst
+stmt = inlineBlock <* nl <|> ifShort <|> ifFull <|> whileShort <|> whileFull
   where
-    sequence xs = case concatMap toList xs of
-      [x] -> x
-      xs  -> Seq xs
-      where
-        toList (Seq ys) = ys
-        toList stmt = [stmt]
-
-    stmt = inlineBlock <* nl <|> ifShort <|> ifFull <|> whileShort <|> whileFull
-
-    inlineBlock = sequence <$> sepBy1 (op Comma) inlineStmt
+    inlineBlock = toSeq <$> sepBy1 (op Comma) inlineStmt
     inlineStmt = inlineAssign
-             <|> inlineRead
-             <|> inlineWrite
-             <|> inlineReturn
-             <|> inlineExpr
+              <|> inlineRead
+              <|> inlineWrite
+              <|> inlineReturn
+              <|> inlineExpr
       where
         inlineAssign = Assign <$> identifier <* op L.Assign <*> expr
         inlineRead = Read <$ kw KRead <*> identifier
@@ -114,7 +105,19 @@ block = sequence <$ sep Indent <*> some stmt <* sep Dedent
     whileFull = While <$ kw KWhile <*> expr <* kw KDo <* nl
       <*> block
 
+block :: Parser String [Token] LAst
+block = toSeq <$ sep Indent <*> some stmt <* sep Dedent
+
+
 -- Common helper parsers
+
+toSeq xs = case concatMap toList xs of
+  [x] -> x
+  xs  -> Seq xs
+  where
+    toList (Seq ys) = ys
+    toList stmt = [stmt]
+
 nl = symbol (TSep Newline)
 identifier = getId <$> satisfy isId
 kw = symbol . TKeyword
