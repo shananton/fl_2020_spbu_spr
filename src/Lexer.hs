@@ -25,10 +25,10 @@ parseRawEither = parseRaw
 -- Наборы символов
 
 isAlpha :: Char -> Bool
-isAlpha x = 'a' <= x && x <= 'z' || 'A' <= x && x <= 'Z' || x == '_'
+isAlpha x = 'a' <= x && x <= 'z' || 'A' <= x && x <= 'Z'
 
 isAlnum :: Char -> Bool
-isAlnum = (||) <$> isAlpha <*> isDigit
+isAlnum x = isAlpha x || isDigit x || x == '_'
 
 isSpace = (`elem` " \t")
 
