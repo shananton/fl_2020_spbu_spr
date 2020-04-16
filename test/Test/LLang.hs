@@ -11,6 +11,8 @@ import           Control.Applicative (some)
 import qualified Data.Map         as Map
 import           Test.Tasty.HUnit (Assertion, assertBool, (@?=))
 
+testFailure = assertBool "" . isFailure
+
 isFailure (Left _) = True
 isFailure _        = False
 
@@ -103,6 +105,75 @@ unit_sampleProgram = do
             ])
         , Write (Ident "ans")
         ])
+
+unit_functionDef = do
+  let defFullNoArgs = unlines
+          [ "foo() is"
+          , "  read x"
+          , "  write x"
+          ]
+  parseRawEither function defFullNoArgs @?= Right (Function "foo" []
+      (Seq
+      [ Read "x"
+      , Write (Ident "x")
+      ]
+      )
+    )
+  let defFullArgs = unlines
+          [ "bar(x, y, z) is"
+          , "  x + y"
+          , "  return foo(z + x)"
+          ]
+  parseRawEither function defFullArgs @?= Right (Function "bar" ["x", "y", "z"]
+      (Seq
+      [ Assign "_" $ BinOp Plus (Ident "x") (Ident "y")
+      , Return $ FunctionCall "foo" [BinOp Plus (Ident "z") (Ident "x")]
+      ]
+      )
+    )
+
+  let defShort = "log(b, a) = ln(a) / ln(b)"
+  parseRawEither function defShort @?= Right (Function "log" ["b", "a"] $
+      Return $ BinOp Div (FunctionCall "ln" [Ident "a"]) (FunctionCall "ln" [Ident "b"])
+    )
+
+  let defEmpty = unlines
+        [ "me() is"
+        , "  pass"
+        ]
+  parseRawEither function defEmpty @?= Right (Function "me" [] (Seq []))
+
+unit_program = do
+  let programCorrect = unlines
+        [ "foo(x) = x^10 + ln(x)"
+        , "main(bosow, notBosow) = bosow"
+        , "hello() is"
+        , "  write 1337"
+        , "main() is"
+        , "  read n"
+        , "  foo(n)"
+        ]
+  parseRawEither program programCorrect @?= Right (Program
+      [ Function "foo" ["x"] $
+          Return $ BinOp Plus (BinOp Pow (Ident "x") (Num 10))
+            (FunctionCall "ln" [Ident "x"])
+      , Function "main" ["bosow", "notBosow"] $
+          Return $ Ident "bosow"
+      , Function "hello" [] $
+          Write $ Num 1337
+      ] $ Seq
+      [ Read "n"
+      , Assign "_" $ FunctionCall "foo" [Ident "n"]
+      ]
+    )
+  let programMultipleDefs = unlines
+        [ "foo() = 1"
+        , "foo() = 2"
+        , "main() = 0"
+        ]
+  testFailure $ parseRawEither program programMultipleDefs
+  let programNoMain = "foo() = 1"
+  testFailure $ parseRawEither program programNoMain
 
 -- read x;
 -- if (x > 13)
