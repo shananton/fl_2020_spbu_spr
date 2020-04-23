@@ -21,8 +21,10 @@ type Expr = AST
 
 type Var = String
 
-data Configuration = Conf { subst :: Subst, input :: [Int], output :: [Int] }
+data Configuration = Conf { subst :: Subst, input :: [Int], output :: [Int], defs :: Defs }
                    deriving (Show, Eq)
+
+type Defs = Map.Map String Function
 
 data Program = Program { functions :: [Function], main :: LAst }
   deriving (Eq)
@@ -189,3 +191,4 @@ instance Show LAst where
       indent = (+1)
 
 indentation n = if n > 0 then printf "%s|_%s" (concat $ replicate (n - 1) "| ") else id
+identation n = if n > 0 then printf "%s|_%s" (concat $ replicate (n - 1) "| ") else id
