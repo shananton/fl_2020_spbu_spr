@@ -131,9 +131,6 @@ kw = symbol . TKeyword
 sep = symbol . TSep
 op = symbol . TOperator
 
-initialConf :: [Int] -> Configuration
-initialConf input = Conf Map.empty input []
-
 eval :: LAst -> Configuration -> Maybe Configuration
 eval p = execStateT (evalM p) where
   evalM :: LAst -> StateT Configuration Maybe ()
