@@ -29,6 +29,7 @@ dependencies:
 - tasty-discover
 - containers
 - mtl
+- lens
 
 library:
   source-dirs: src
