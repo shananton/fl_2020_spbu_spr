@@ -24,11 +24,13 @@ ignoreDefs conf Nothing = assertBool "" (isNothing conf)
 -- {read x; read y; write (f x y); write (g x)}"
 prog =
   Program
-    [ Function "f" ["x", "y"] (Read "z") (BinOp Plus (Ident "x") (BinOp Mult (Ident "z") (Ident "y")))
-    , Function "g" ["x"] (If (Ident "x")
-                             (Seq [Write (Num 42), Assign "res" (Ident "x")])
-                             (Assign "res" (BinOp Mult (Ident "x") (Num 13))))
-                         (Ident "res")
+    [ Function "f" ["x", "y"] (Seq [Read "z", Return $ BinOp Plus (Ident "x") (BinOp Mult (Ident "z") (Ident "y"))])
+    , Function "g" ["x"] $ Seq
+      [ If (Ident "x")
+        (Seq [Write (Num 42), Assign "res" (Ident "x")])
+        (Assign "res" (BinOp Mult (Ident "x") (Num 13)))
+      , Return (Ident "res")
+      ]
     ]
     (
       Seq
@@ -50,15 +52,16 @@ unit_evalProg = do
 prog1 :: Program
 prog1 =
   Program
-    [ Function "f" ["x"]
-        (If (BinOp Lt (Ident "x") (Num 10))
+    [ Function "f" ["x"] $ Seq
+      [ (If (BinOp Lt (Ident "x") (Num 10))
             (Seq [ Assign "x" (BinOp Plus (Ident "x") (Num 1))
                  , Write (Ident "x")
                  , Assign "r" (FunctionCall "f" [Ident "x"])
                  ]
             )
             (Seq []))
-        (Num 0)
+       , Return (Num 0)
+       ]
     ]
     (
       Seq
@@ -77,15 +80,16 @@ unit_evalProg1 = do
 prog2 :: Program
 prog2 =
   Program
-    [ Function "f" ["x"]
-        (If (BinOp Lt (Ident "x") (Num 10))
+    [ Function "f" ["x"] $ Seq
+      [ (If (BinOp Lt (Ident "x") (Num 10))
             (Seq [ Assign "x" (BinOp Plus (Ident "x") (Num 1))
                  , Assign "r" (FunctionCall "f" [Ident "x"])
                  , Write (Ident "x")
                  ]
             )
             (Seq []))
-        (Num 0)
+      , Return (Num 0)
+      ]
     ]
     (
       Seq
@@ -105,21 +109,23 @@ unit_evalProg2 = do
 -- {read n; write (even n); write (odd n)}
 prog3 =
   Program
-    [ Function "even" ["n"]
-        (If (BinOp Equal (Ident "n") (Num 0))
+    [ Function "even" ["n"] $ Seq
+      [ (If (BinOp Equal (Ident "n") (Num 0))
             (Assign "res" (Num 0))
             (Assign "res" (FunctionCall "odd" [BinOp Minus (Ident "n") (Num 1)]))
         )
-        (Ident "res")
-    , Function "odd" ["n"]
-        (If (BinOp Equal (Ident "n") (Num 0))
+      , Return (Ident "res")
+      ]
+    , Function "odd" ["n"] $ Seq
+      [ (If (BinOp Equal (Ident "n") (Num 0))
             (Assign "res" (Num 1))
             (If (BinOp Equal (Ident "n") (Num 1))
                 (Assign "res" (Num 0))
                 (Assign "res" (FunctionCall "even" [BinOp Minus (Ident "n") (Num 1)]))
             )
         )
-        (Ident "res")
+      , Return (Ident "res")
+      ]
     ]
     (Seq
       [ Read "n"
@@ -140,21 +146,23 @@ unit_evalProg3 = do
 -- {write(odd 0)}
 prog4 =
   Program
-    [ Function "even" ["n"]
-        (If (BinOp Equal (Ident "n") (Num 0))
+    [ Function "even" ["n"] $ Seq
+      [ (If (BinOp Equal (Ident "n") (Num 0))
             (Assign "res" (Num 0))
             (Assign "res" (FunctionCall "odd" [BinOp Minus (Ident "n") (Num 1)]))
         )
-        (Ident "res")
-    , Function "odd" ["n"]
-        (If (BinOp Equal (Ident "n") (Num 0))
+      , Return (Ident "res")
+      ]
+    , Function "odd" ["n"] $ Seq
+      [ (If (BinOp Equal (Ident "n") (Num 0))
             (Assign "res" (Num 1))
             (If (BinOp Equal (Ident "n") (Num 1))
                 (Assign "res" (Num 0))
                 (Assign "res" (FunctionCall "even" [BinOp Minus (Ident "n") (Num 1)]))
             )
         )
-        (Ident "res")
+      , Return (Ident "res")
+      ]
     ]
     (Seq [ Write (FunctionCall "odd" [Num 0])
          , Write (FunctionCall "odd" [Num 1])

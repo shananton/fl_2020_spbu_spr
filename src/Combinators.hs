@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 
@@ -8,16 +9,8 @@ import           Control.Monad
 import           Control.Monad.Fail
 import           Data.List           (nub, sortOn)
 import           Control.Monad.Except
-
-data Result error input result
-  = Success (InputStream input) result
-  | Failure [ErrorMsg error]
-  deriving (Eq)
-
-type Position = Int
-
-newtype Parser error input result
-  = Parser { runParser' :: InputStream input -> Result error input result }
+import Control.Lens
+import Control.Lens.TH
 
 data InputStream a = InputStream { stream :: a, curPos :: Position }
                    deriving (Show, Eq)
@@ -25,18 +18,28 @@ data InputStream a = InputStream { stream :: a, curPos :: Position }
 data ErrorMsg e = ErrorMsg { errors :: [e], pos :: Position }
                 deriving (Eq)
 
+data Result error input result
+  = Success (InputStream input) result
+  | Failure [ErrorMsg error]
+  deriving (Eq)
+
+data Position = Pos { _line :: Int, _col :: Int }
+  deriving (Show, Eq, Ord)
+
+$(makeLenses ''Position)
+
+newtype Parser error input result
+  = Parser { runParser' :: InputStream input -> Result error input result }
+
 makeError e p = ErrorMsg [e] p
 
-initPosition = 0
+initPosition = Pos 0 0
 
 runParser :: Parser error input result -> input -> Result error input result
 runParser parser input = runParser' parser (InputStream input initPosition)
 
 toStream :: a -> Position -> InputStream a
 toStream = InputStream
-
-incrPos :: InputStream a -> InputStream a
-incrPos (InputStream str pos) = InputStream str (pos + 1)
 
 instance Functor (Result error input) where
   fmap f (Success i r) = Success i (f r)
@@ -88,8 +91,22 @@ infixl 1 <?>
     Failure err -> Failure $ mergeErrors [makeError msg (maximum $ map pos err)] err
     x -> x
 
+class Locatable a where
+  consume :: a -> Position -> Position
+
+defaultTabWidth = 4
+
+instance Locatable Char where
+  consume '\t' = col +~ defaultTabWidth
+  consume '\n' = (line +~ 1) . (col .~ 0)
+  consume '\r' = id
+  consume _    = col +~ 1
+
+position :: Parser e i Position
+position = Parser $ \ input -> Success input (curPos input)
+
 -- Проверяет, что первый элемент входной последовательности -- данный символ
-symbol :: (Show a, Eq a) => a -> Parser String [a] a
+symbol :: (Locatable a, Show a, Eq a) => a -> Parser String [a] a
 symbol c = ("Expected symbol: " ++ show c) <?> satisfy (== c)
 
 eof :: Parser String [a] ()
@@ -107,22 +124,25 @@ notEof = Parser $ \input ->
     Failure [makeError "Unexpected eof" (curPos input)]
 
 -- Проверяет, что первый элемент входной последовательности удовлетворяет предикату
-satisfy :: (a -> Bool) -> Parser String [a] a
-satisfy p = Parser $ \(InputStream input pos) ->
+satisfy :: Locatable a => (a -> Bool) -> Parser String [a] a
+satisfy p = Parser $ \ (InputStream input pos) ->
   case input of
-    (x:xs) | p x -> Success (incrPos $ InputStream xs pos) x
-    input        -> Failure [makeError "Predicate failed" pos]
+    x:xs | p x -> Success (InputStream xs (consume x pos)) x
+    input      -> Failure [makeError "Predicate failed" pos]
+
+anyChar :: Locatable a => Parser String [a] a
+anyChar = satisfy (const True)
 
 -- Всегда завершается ошибкой
 fail' :: e -> Parser e i a
 fail' msg = Parser $ \input -> Failure [makeError msg (curPos input)]
 
-word :: (Show a, Eq a) => [a] -> Parser String [a] [a]
-word w = Parser $ \(InputStream input pos) ->
-  let (pref, suff) = splitAt (length w) input in
-  if pref == w
-  then Success (InputStream suff (pos + length w)) w
-  else Failure [makeError ("Expected " ++ show w) pos]
+word :: (Locatable a, Show a, Eq a) => [a] -> Parser String [a] [a]
+word w = do
+  let err = "Expected " ++ show w
+  word <- err <?> replicateM (length w) anyChar
+  err <?> guard (word == w)
+  return word
 
 -- Применяет парсер ко всей последовательности
 parseMaybe :: Parser e [t] a -> [t] -> Maybe a
@@ -141,17 +161,13 @@ parse p i = case runParser p i of
   Success (InputStream _ pos) _ -> throwError $
     "Parser stopped on position " ++ show pos
 
--- Игнорирует результат парсера
-ignore :: Parser e i a -> Parser e i ()
-ignore = (() <$)
-
 -- Применяет парсер, при неудаче возвращая значение по умолчанию
 option :: Monoid e => a -> Parser e i a -> Parser e i a
 option x = (<|> pure x)
 
 -- Версия option_, игнорирующая результат
 option_ :: Monoid e => Parser e i a -> Parser e i ()
-option_ = option () . ignore
+option_ = option () . void
 
 -- Проверяет, что первый элемент входной последовательности удовлетворяет предикату,
 -- оставляя его во входной последовательности.
@@ -163,7 +179,7 @@ scout p = Parser $ \ i@(InputStream input pos) ->
 
 -- Проверяет, что в начале входного потока нет символа, удовлетворяющего предикату
 avoid :: (a -> Bool) -> Parser String [a] ()
-avoid = (eof <|>) . ignore . scout . fmap not
+avoid = (eof <|>) . void . scout . fmap not
 
 -- Принимает последовательность элементов, разделенных разделителем
 -- Первый аргумент -- парсер для разделителя

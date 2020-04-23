@@ -15,6 +15,7 @@ import qualified Data.Map            as Map
 import           Data.Maybe          (fromJust, maybe)
 import           Data.Monoid         (Alt (..))
 import           Data.Tuple          (swap)
+import Control.Lens
 
 data Associativity
   = LeftAssoc  -- 1 @ 2 @ 3 @ 4 = (((1 @ 2) @ 3) @ 4)
@@ -78,7 +79,7 @@ uberExpr allOps atom astBin astUn = uber allOps
         Unary             -> flip (foldr ($)) <$> many (astUn <$> op) <*> term
     uber [] = atom
 
-expr :: Parser String [Token] AST
+expr :: Parser String [TokenP] AST
 expr = uberExpr ops atom BinOp UnaryOp
   where
     ops = map (first listToParser)

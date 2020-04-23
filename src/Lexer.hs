@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE FlexibleContexts #-}
 
 module Lexer where
@@ -13,14 +14,8 @@ import Data.Char (isDigit, isHexDigit, digitToInt)
 import Data.Ord (Down (..))
 import Data.List (sortOn)
 import Control.Monad.Except
-
-parseRaw :: (Show (ErrorMsg e), MonadError String m) =>
-  Parser e [Token] a -> String -> m a
-parseRaw p = parse lexAll >=> parse p
-
-parseRawEither :: (Show (ErrorMsg e)) =>
-  Parser e [Token] a -> String -> Either String a
-parseRawEither = parseRaw
+import Control.Lens hiding (enum)
+import Control.Lens.TH
 
 -- Наборы символов
 
@@ -130,20 +125,37 @@ keyword :: Parser String String TKeyword
 keyword = enum keywordRepr <* avoid isAlnum
 
 data Token
-  = TInt { getInt :: Int }
-  | TId { getId :: TId }
-  | TOperator { getOperator :: TOperator }
-  | TSep { getSep :: TSep }
-  | TKeyword { getKeyword :: TKeyword }
+  = TInt { getInt_ :: Int }
+  | TId { getId_ :: TId }
+  | TOperator { getOperator_ :: TOperator }
+  | TSep { getSep_ :: TSep }
+  | TKeyword { getKeyword_ :: TKeyword }
   deriving (Eq, Show)
 
-isInt :: Token -> Bool
-isInt (TInt _) = True
+data TokenP = TokenP { _tok :: Token, _pos :: Position }
+  deriving (Eq, Show)
+
+$(makeLenses ''TokenP)
+
+instance Locatable TokenP where
+  consume (TokenP tok pos) = const pos
+
+isInt :: TokenP -> Bool
+isInt (TokenP (TInt _) _) = True
 isInt _        = False
 
-isId :: Token -> Bool
-isId (TId _) = True
+isId :: TokenP -> Bool
+isId (TokenP (TId _) _) = True
 isId _       = False
+
+getInt :: TokenP -> Int
+getInt = tok `views` getInt_
+
+getId :: TokenP -> TId
+getId = tok `views` getId_
+
+exact :: Token -> Parser String [TokenP] TokenP
+exact t = satisfy ((== t) . view tok)
 
 token :: Parser String String Token
 token = TInt <$> nat
@@ -151,6 +163,22 @@ token = TInt <$> nat
     <|> TKeyword <$> keyword
     <|> TId <$> ident
 
+pin :: Token -> Position -> TokenP
+pin = TokenP
+
+pinned :: Token -> Parser String String TokenP
+pinned = emit . pure
+
+emit :: Parser String String Token -> Parser String String TokenP
+emit p = position <**> (pin <$> p)
+
+parseRaw :: (Show (ErrorMsg e), MonadError String m) =>
+  Parser e [TokenP] a -> String -> m a
+parseRaw p = parse lexAll >=> parse p
+
+parseRawEither :: (Show (ErrorMsg e)) =>
+  Parser e [TokenP] a -> String -> Either String a
+parseRawEither = parseRaw
 
 -- Парсер для натуральных чисел
 nat :: Parser String String Int
@@ -164,45 +192,48 @@ nat = nat' <* avoid isAlnum
 ident :: Parser String String String
 ident = (:) <$> alpha <*> many alnum
 
-eol = ignore (word "\r\n") <|> ignore (word "\n") <|> eof
+eol = void (word "\r\n") <|> void (word "\n") <|> eof
 
 type IndentLevels = [Int]
 
-lexAll :: Parser String String [Token]
+lexAll :: Parser String String [TokenP]
 lexAll = evalStateT lexLines [0]
   where
-    dedentTo :: Int -> StateT IndentLevels (Parser String String) [Token]
+    dedentTo :: Int -> StateT IndentLevels (Parser String String) [TokenP]
     dedentTo n = do
       cur <- gets head
       if n < cur then
-        modify tail >> (TSep Dedent :) <$> dedentTo n
+        modify tail >>
+          (:) <$> lift (pinned (TSep Dedent)) <*> dedentTo n
       else do
         True <- pure $ n == cur
         return []
 
-    indentTo :: Int -> StateT IndentLevels (Parser String String) [Token]
+    indentTo :: Int -> StateT IndentLevels (Parser String String) [TokenP]
     indentTo n = do
       cur <- gets head
       if n > cur then
-        modify (n :) $> [TSep Indent]
+        modify (n :) >>
+          (: []) <$> lift (pinned (TSep Indent))
       else
         dedentTo n
 
-    lexLineWithoutIndentation :: Parser String String [Token]
+    lexLineWithoutIndentation :: Parser String String [TokenP]
     lexLineWithoutIndentation = (++)
-      <$> some (many space *> token)
-      <*> (many space *> (eol $> [TSep Newline] <|> lineCont))
+      <$> some (many space *> emit token)
+      <*> (many space *>
+        (eol >> (: []) <$> pinned (TSep Newline)) <|> lineCont)
       where
         lineCont = symbol '\\' *> many space *> eol *> many space
           *> lexLineWithoutIndentation
 
-    lexLine :: StateT IndentLevels (Parser String String) [Token]
+    lexLine :: StateT IndentLevels (Parser String String) [TokenP]
     lexLine = do
       lineIndent <- lift $ length <$> many space
       lift ([] <$ eol) <|> -- if the line consists of whitespace, skip it
         (++) <$> indentTo lineIndent <*> lift lexLineWithoutIndentation
 
-    lexLines :: StateT IndentLevels (Parser String String) [Token]
+    lexLines :: StateT IndentLevels (Parser String String) [TokenP]
     lexLines = (++)
       <$> (concat <$> many (lift notEof *> lexLine))
       <*> dedentTo 0
