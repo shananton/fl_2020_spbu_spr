@@ -1,4 +1,6 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE UndecidableInstances #-} -- извините
+{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 
@@ -19,24 +21,22 @@ data ErrorMsg e = ErrorMsg { errors :: [e], pos :: Position }
                 deriving (Eq)
 
 data Result error input result
-  = Success (InputStream input) result
+  = Success input result
   | Failure [ErrorMsg error]
   deriving (Eq)
 
-data Position = Pos { _line :: Int, _col :: Int }
+data Position = Pos { line :: Int, col :: Int }
   deriving (Show, Eq, Ord)
 
-$(makeLenses ''Position)
-
 newtype Parser error input result
-  = Parser { runParser' :: InputStream input -> Result error input result }
+  = Parser { runParser :: input -> Result error input result }
 
 makeError e p = ErrorMsg [e] p
 
 initPosition = Pos 0 0
 
-runParser :: Parser error input result -> input -> Result error input result
-runParser parser input = runParser' parser (InputStream input initPosition)
+-- runParser :: Parser error input result -> input -> Result error input result
+-- runParser parser input = runParser' parser (InputStream input initPosition)
 
 toStream :: a -> Position -> InputStream a
 toStream = InputStream
@@ -46,7 +46,7 @@ instance Functor (Result error input) where
   fmap f (Failure e)   = Failure e
 
 instance Functor (Parser error input) where
-  fmap f = Parser . fmap (fmap f) . runParser'
+  fmap f = Parser . fmap (fmap f) . runParser
 
 instance Applicative (Parser error input) where
   pure x = Parser $ \s -> Success s x
@@ -58,10 +58,10 @@ instance Applicative (Parser error input) where
 instance Monad (Parser error input) where
   Parser x >>= k = Parser $ \s -> case x s of
     Failure e   -> Failure e
-    Success i r -> runParser' (k r) i
+    Success i r -> runParser (k r) i
 
-instance Monoid error => Alternative (Parser error input) where
-  empty = Parser $ \input -> Failure [makeError mempty (curPos input)]
+instance (Stream input a, Monoid error) => Alternative (Parser error input) where
+  empty = Parser $ \s -> Failure [makeError mempty (locate s)]
   Parser a <|> Parser b = Parser $ \input ->
     case a input of
       Success input' r -> Success input' r
@@ -70,9 +70,9 @@ instance Monoid error => Alternative (Parser error input) where
           Failure e' -> Failure $ mergeErrors e e'
           x          -> x
 
-instance Monoid error => MonadPlus (Parser error input)
+instance (Stream input a, Monoid error) => MonadPlus (Parser error input)
 
-instance Monoid error => MonadFail (Parser error input) where
+instance (Stream input a, Monoid error) => MonadFail (Parser error input) where
   fail _ = empty
 
 mergeErrors :: (Monoid e) => [ErrorMsg e] -> [ErrorMsg e] -> [ErrorMsg e]
@@ -91,53 +91,57 @@ infixl 1 <?>
     Failure err -> Failure $ mergeErrors [makeError msg (maximum $ map pos err)] err
     x -> x
 
-class Locatable a where
-  consume :: a -> Position -> Position
+class Stream s t | s -> t where
+  next :: s -> Maybe (t, s)
+  locate :: s -> Position
+
+instance Stream (InputStream String) Char where
+  next (InputStream [] _)                  = Nothing
+  next (InputStream (x:xs) (Pos line col)) = let
+    npos = case x of
+      '\t' -> Pos line (col + defaultTabWidth)
+      '\r' -> Pos line col
+      '\n' -> Pos (line + 1) 0
+      _    -> Pos line (col + 1)
+    in Just (x, InputStream xs npos)
+  locate = curPos
 
 defaultTabWidth = 4
 
-instance Locatable Char where
-  consume '\t' = col +~ defaultTabWidth
-  consume '\n' = (line +~ 1) . (col .~ 0)
-  consume '\r' = id
-  consume _    = col +~ 1
-
-position :: Parser e i Position
-position = Parser $ \ input -> Success input (curPos input)
+position :: Stream s t => Parser e s Position
+position = Parser $ \ input -> Success input (locate input)
 
 -- Проверяет, что первый элемент входной последовательности -- данный символ
-symbol :: (Locatable a, Show a, Eq a) => a -> Parser String [a] a
+symbol :: (Stream s t, Show t, Eq t) => t -> Parser String s t
 symbol c = ("Expected symbol: " ++ show c) <?> satisfy (== c)
 
-eof :: Parser String [a] ()
-eof = Parser $ \input ->
-  if null $ stream input then
-   Success input ()
-  else
-    Failure [makeError "Not eof" (curPos input)]
+eof :: Stream s t => Parser String s ()
+eof = "Not eof" <?> shouldFail anyChar
 
-notEof :: Parser String [a] ()
-notEof = Parser $ \input ->
-  if not $ null $ stream input then
-    Success input ()
-  else
-    Failure [makeError "Unexpected eof" (curPos input)]
+notEof :: Stream s t => Parser String s ()
+notEof = "Unexpected eof" <?> void peek
+
+shouldFail :: Stream s t => Parser String s a -> Parser String s ()
+shouldFail p = Parser $ \ s -> case runParser p s of
+  Success _ _ -> Failure [makeError "Parser in shouldFail succeeded" (locate s)]
+  Failure _   -> Success s ()
 
 -- Проверяет, что первый элемент входной последовательности удовлетворяет предикату
-satisfy :: Locatable a => (a -> Bool) -> Parser String [a] a
-satisfy p = Parser $ \ (InputStream input pos) ->
-  case input of
-    x:xs | p x -> Success (InputStream xs (consume x pos)) x
-    input      -> Failure [makeError "Predicate failed" pos]
+satisfy :: Stream s t => (t -> Bool) -> Parser String s t
+satisfy p = Parser $ \ s ->
+  case next s of
+    Nothing            -> Failure [makeError "Unexpected eof" (locate s)]
+    Just (x, s') | p x -> Success s' x
+    _                  -> Failure [makeError "Predicate failed" (locate s)]
 
-anyChar :: Locatable a => Parser String [a] a
+anyChar :: Stream s t => Parser String s t
 anyChar = satisfy (const True)
 
 -- Всегда завершается ошибкой
-fail' :: e -> Parser e i a
-fail' msg = Parser $ \input -> Failure [makeError msg (curPos input)]
+fail' :: Stream s t => e -> Parser e s t
+fail' msg = Parser $ \s -> Failure [makeError msg (locate s)]
 
-word :: (Locatable a, Show a, Eq a) => [a] -> Parser String [a] [a]
+word :: (Stream s t, Show t, Eq t) => [t] -> Parser String s [t]
 word w = do
   let err = "Expected " ++ show w
   word <- err <?> replicateM (length w) anyChar
@@ -145,51 +149,54 @@ word w = do
   return word
 
 -- Применяет парсер ко всей последовательности
-parseMaybe :: Parser e [t] a -> [t] -> Maybe a
+parseMaybe :: Stream s t => Parser String s a -> s -> Maybe a
 parseMaybe = parse_
 
-parse_ :: Alternative f => Parser e [t] a -> [t] -> f a
-parse_ p i = case runParser p i of
-  Success (InputStream [] _) x -> pure x
-  _                            -> empty
+parse_ :: (Stream s t, Alternative f) => Parser String s a -> s -> f a
+parse_ p i = case runParser (p <* eof) i of
+  Success _ x -> pure x
+  _           -> empty
 
-parse :: (Show (ErrorMsg e), MonadError String m) =>
-  Parser e [t] a -> [t] -> m a
-parse p i = case runParser p i of
-  Success (InputStream [] _) x  -> pure x
-  Failure es                    -> throwError $ show es
-  Success (InputStream _ pos) _ -> throwError $
-    "Parser stopped on position " ++ show pos
+
+parse :: (Stream s t, MonadError String m) =>
+  Parser String s a -> s -> m a
+parse p i = case runParser (p <* eof) i of
+  Success _ x  -> pure x
+  Failure es   -> throwError $ show es
 
 -- Применяет парсер, при неудаче возвращая значение по умолчанию
-option :: Monoid e => a -> Parser e i a -> Parser e i a
+option :: (Stream s t, Monoid e) => a -> Parser e s a -> Parser e s a
 option x = (<|> pure x)
 
 -- Версия option_, игнорирующая результат
-option_ :: Monoid e => Parser e i a -> Parser e i ()
+option_ :: (Stream s t, Monoid e) => Parser e s a -> Parser e s ()
 option_ = option () . void
 
 -- Проверяет, что первый элемент входной последовательности удовлетворяет предикату,
 -- оставляя его во входной последовательности.
-scout :: (a -> Bool) -> Parser String [a] a
-scout p = Parser $ \ i@(InputStream input pos) ->
-  case input of
-    (x:xs) | p x -> Success i x
-    input        -> Failure [makeError "Predicate failed" pos]
+scout :: Stream s t => (t -> Bool) -> Parser String s t
+scout p = Parser $ \ s ->
+  case next s of
+    Nothing           -> Failure [makeError "Unexpected eof" (locate s)]
+    Just (x, _) | p x -> Success s x
+    _                 -> Failure [makeError "Predicate failed" (locate s)]
+
+peek :: Stream s t => Parser String s t
+peek = scout (const True)
 
 -- Проверяет, что в начале входного потока нет символа, удовлетворяющего предикату
-avoid :: (a -> Bool) -> Parser String [a] ()
-avoid = (eof <|>) . void . scout . fmap not
+avoid :: Stream s t => (t -> Bool) -> Parser String s ()
+avoid = shouldFail . scout
 
 -- Принимает последовательность элементов, разделенных разделителем
 -- Первый аргумент -- парсер для разделителя
 -- Второй аргумент -- парсер для элемента
 -- В последовательности должен быть хотя бы один элемент
-sepBy1 :: Monoid e => Parser e i sep -> Parser e i a -> Parser e i [a]
+sepBy1 :: (Stream s t, Monoid e) => Parser e s sep -> Parser e s a -> Parser e s [a]
 sepBy1 sep elem = (:) <$> elem
   <*> many (sep *> elem)
 
-sepBy :: Monoid e => Parser e i sep -> Parser e i a -> Parser e i [a]
+sepBy :: (Stream s t, Monoid e) => Parser e s sep -> Parser e s a -> Parser e s [a]
 sepBy sep elem = sepBy1 sep elem <|> pure []
 
 instance Show (ErrorMsg String) where

@@ -132,30 +132,20 @@ data Token
   | TKeyword { getKeyword_ :: TKeyword }
   deriving (Eq, Show)
 
-data TokenP = TokenP { _tok :: Token, _pos :: Position }
-  deriving (Eq, Show)
+data FixedPosStream a = FixedPosStream [(a, Position)]
 
-$(makeLenses ''TokenP)
+instance Stream (FixedPosStream a) a where
+  next (FixedPosStream (x, p):s') = Just (x, s')
+  next _                          = Nothing
+  locate
 
-instance Locatable TokenP where
-  consume (TokenP tok pos) = const pos
-
-isInt :: TokenP -> Bool
-isInt (TokenP (TInt _) _) = True
+isInt :: Token -> Bool
+isInt (TInt _) = True
 isInt _        = False
 
-isId :: TokenP -> Bool
-isId (TokenP (TId _) _) = True
+isId :: Token -> Bool
+isId (TId _) = True
 isId _       = False
-
-getInt :: TokenP -> Int
-getInt = tok `views` getInt_
-
-getId :: TokenP -> TId
-getId = tok `views` getId_
-
-exact :: Token -> Parser String [TokenP] TokenP
-exact t = satisfy ((== t) . view tok)
 
 token :: Parser String String Token
 token = TInt <$> nat
@@ -163,21 +153,12 @@ token = TInt <$> nat
     <|> TKeyword <$> keyword
     <|> TId <$> ident
 
-pin :: Token -> Position -> TokenP
-pin = TokenP
-
-pinned :: Token -> Parser String String TokenP
-pinned = emit . pure
-
-emit :: Parser String String Token -> Parser String String TokenP
-emit p = position <**> (pin <$> p)
-
 parseRaw :: (Show (ErrorMsg e), MonadError String m) =>
-  Parser e [TokenP] a -> String -> m a
+  Parser e [Token] a -> String -> m a
 parseRaw p = parse lexAll >=> parse p
 
 parseRawEither :: (Show (ErrorMsg e)) =>
-  Parser e [TokenP] a -> String -> Either String a
+  Parser e [Token] a -> String -> Either String a
 parseRawEither = parseRaw
 
 -- Парсер для натуральных чисел
