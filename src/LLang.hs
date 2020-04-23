@@ -24,7 +24,10 @@ type Var = String
 data Configuration = Conf { subst :: Subst, input :: [Int], output :: [Int], defs :: Defs }
                    deriving (Show, Eq)
 
-type Defs = Map.Map String Function
+data FunctionSignature = Sig String Int
+  deriving (Eq, Ord, Show)
+
+type Defs = Map.Map FunctionSignature Function
 
 data Program = Program { functions :: [Function], main :: LAst }
   deriving (Eq)
@@ -42,17 +45,14 @@ data LAst
   | Return { val :: Expr }
   deriving (Eq)
 
--- parseL :: Parser String String LAst
--- parseL = Parser
---   $ maybe (Failure [makeError "parseL failed" 0]) (Success (InputStream "" 0))
---   . (parseMaybe lexAll >=> parseMaybe program)
---   . stream
+signature :: Function -> FunctionSignature
+signature = Sig <$> name <*> length . args
 
 program :: Parser String [Token] Program
 program = do
   functions <- some function
   "Duplicate definitions found" <?>
-    guard (isUniqueOn (name &&& args) functions)
+    guard (isUniqueOn signature functions)
   main <- "No main() function found" <?> findMain functions
   return $ Program (filter (not . isMain) functions) main
     where
@@ -61,7 +61,7 @@ program = do
         return main
       isUniqueOn f xs = let sorted = sortOn f xs in
         and $ zipWith ((/=) `on` f) sorted (tail sorted)
-      isMain = (("main", []) ==) . (name &&& args)
+      isMain = (Sig "main" 0 ==) . signature
 
 function :: Parser String [Token] Function
 function = functionFull <|> functionShort
