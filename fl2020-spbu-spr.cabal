@@ -1,0 +1,62 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.31.2.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 5cf40a2bd24780caab03b725f2353506ae6a01ba683101a0c0279c350d1bd6e4
+
+name:           fl2020-spbu-spr
+version:        0.1.0.0
+description:    Please see the README on GitHub at <https://https://github.com/kajigor/fl-2020-spbu-spr>
+homepage:       https://github.com/kajigor/fl-2020-spbu-spr#readme
+bug-reports:    https://github.com/kajigor/fl-2020-spbu-spr/issues
+author:         Ekaterina Verbitskaia
+maintainer:     kajigor@gmail.com
+copyright:      2020 Ekaterina Verbitskaia
+license:        BSD3
+license-file:   LICENSE
+build-type:     Simple
+extra-source-files:
+    README.md
+    ChangeLog.md
+
+source-repository head
+  type: git
+  location: https://github.com/kajigor/fl-2020-spbu-spr
+
+library
+  exposed-modules:
+      Regexp
+  other-modules:
+      Paths_fl2020_spbu_spr
+  hs-source-dirs:
+      src
+  build-depends:
+      HUnit
+    , base >=4.7 && <5
+    , hedgehog
+    , tasty
+    , tasty-discover
+    , tasty-hedgehog
+    , tasty-hunit
+  default-language: Haskell2010
+
+test-suite test
+  type: exitcode-stdio-1.0
+  main-is: Test.hs
+  other-modules:
+      Test.Regexp
+      Paths_fl2020_spbu_spr
+  hs-source-dirs:
+      test
+  build-depends:
+      HUnit
+    , base >=4.7 && <5
+    , fl2020-spbu-spr
+    , hedgehog
+    , tasty
+    , tasty-discover
+    , tasty-hedgehog
+    , tasty-hunit
+  default-language: Haskell2010
