@@ -8,8 +8,9 @@ import Data.List (intercalate)
 type Args = [Arg]
 type Body = [Atom]
 
+data Program = Program { relations :: [Relation], goal :: Body }
+
 data Relation = Relation { name :: String
-                         , arity :: Int
                          , rules :: [Rule] }
 
 data Rule = Rule { params :: Args
@@ -20,8 +21,6 @@ data Arg = AtomArg Atom
 
 data Atom = Atom { func :: String, args :: Args }
 
-newtype Goal = Goal { goal :: Body }
-
 
 instance {-# OVERLAPPING #-} Show Args where
   show = intercalate ", " . map show
@@ -29,8 +28,13 @@ instance {-# OVERLAPPING #-} Show Args where
 instance {-# OVERLAPPING #-} Show Body where
   show = (++ ".") . intercalate ", " . map show
 
+instance Show Program where
+  show (Program relations goal) =
+    intercalate "\n\n" (map show relations)
+    ++ "\n\n?- " ++ show goal
+
 instance Show Relation where
-  show (Relation name _ rules) = 
+  show (Relation name rules) = 
     intercalate "\n" $ map showRule rules
       where
         showRule (Rule params body) = 
@@ -42,6 +46,3 @@ instance Show Arg where
 
 instance Show Atom where
   show (Atom func args) = func ++ "(" ++ show args ++ ")"
-
-instance Show Goal where
-  show (Goal goal) = "?- " ++ show goal

@@ -13,23 +13,23 @@ $space = [\ \n\r]
 tokens :-
   
   $space+               ;
-  $uppercase $alnum*    { \s -> TVar s }
-  $lowercase $alnum*    { \s -> TIdent s }
-  \,                    { \_ -> TComma }
-  \.                    { \_ -> TStop }
-  \(                    { \_ -> TLPar }
-  \)                    { \_ -> TRPar }
-  ":-"                  { \_ -> TArr }
-  "?-"                  { \_ -> TGoal }
+  $uppercase $alnum*    { \s -> Var s }
+  $lowercase $alnum*    { \s -> Ident s }
+  \,                    { \_ -> Comma }
+  \.                    { \_ -> Stop }
+  \(                    { \_ -> LPar }
+  \)                    { \_ -> RPar }
+  ":-"                  { \_ -> Arr }
+  "?-"                  { \_ -> Goal }
 
 
 {
-data Token = TVar String
-           | TIdent String
-           | TComma
-           | TStop
-           | TLPar
-           | TRPar
-           | TArr
-           | TGoal
+data Token = Var String
+           | Ident String
+           | Comma
+           | Stop
+           | LPar
+           | RPar
+           | Arr
+           | Goal
 }
