@@ -4,7 +4,7 @@ module ParseP (parse) where
 import qualified LexP as L
 import qualified PLang as P
 
-import Data.List (groupBy)
+import Data.List (groupBy, sort)
 import Data.Function (on)
 }
 
@@ -67,13 +67,21 @@ atom :: { P.Atom }
 data RuleFull = RuleFull P.Atom P.Body
 
 getName (RuleFull (P.Atom name _) _) = name
+getArity (RuleFull (P.Atom _ xs) _) = length xs
 
 mkRelation rules = P.Relation name (map mkRule rules)
   where
     name = getName (head rules)
+    arity = getArity (head rules)
+    assertSameArity rs = if all ((== arity) . getArity) rs then rs else
+      error "Relation has different arity in different rules"
     mkRule (RuleFull (P.Atom _ args) body) = P.Rule args body
 
-processRules = map mkRelation . groupBy ((==) `on` getName)
+processRules = assertUnique . map mkRelation . groupBy ((==) `on` getName)
+  where
+    assertUnique rs = if unique (map P.name rs) then rs else
+      error "Redefinition of relation"
+    unique = and . (\xs -> zipWith (/=) xs (if null xs then [] else tail xs)) . sort
 
 parseError = error "Parse error"
 }
