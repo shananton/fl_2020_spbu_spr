@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 22f298cfaf69f452228fa387492e1e59950be456708a1221928c28fee08b6ce2
+-- hash: fa4a4eb8c9337c3cb3834da371586630d8db6bc950edc41e3d396147746e3342
 
 name:           pparse
 version:        0.1.0.0
@@ -50,6 +50,7 @@ test-suite test
   build-depends:
       array
     , base >=4 && <5
+    , deepseq
     , pparse
     , tasty
     , tasty-discover

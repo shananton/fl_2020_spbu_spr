@@ -2,7 +2,7 @@ module Test.ParseP where
 
 import Control.Monad ((>=>))
 import Test.Tasty.HUnit (Assertion, (@?=))
-import Common (assertFails)
+import Common
 
 import LexP (tokenize)
 import ParseP
@@ -31,6 +31,16 @@ unit_simpleParse = do
       ]
     , goal = []
     }
+
+unit_duplicateDefinitions :: Assertion
+unit_duplicateDefinitions = do
+  assertSucceeds $ lexAndParse "a(X). b(Y). ?-."
+  assertFails $ lexAndParse "a(X). b(Y). a(Z). ?-."
+
+unit_wrongArity :: Assertion
+unit_wrongArity = do
+  assertSucceeds $ lexAndParse "a(X). a(Y). ?-."
+  assertFails $ lexAndParse "a(X). a(Y, Z). ?-."
 
 unit_samples :: Assertion
 unit_samples = do

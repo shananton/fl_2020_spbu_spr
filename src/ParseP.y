@@ -66,7 +66,7 @@ data RuleFull = RuleFull P.Atom P.Body
 getName (RuleFull (P.Atom name _) _) = name
 getArity (RuleFull (P.Atom _ xs) _) = length xs
 
-mkRelation rules = P.Relation name (map mkRule rules)
+mkRelation rules = P.Relation name (map mkRule $ assertSameArity rules)
   where
     name = getName (head rules)
     arity = getArity (head rules)

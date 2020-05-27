@@ -1,7 +1,7 @@
 module Test.LexP where
 
 import Test.Tasty.HUnit (Assertion, (@?=))
-import Common (assertFails)
+import Common
 
 import LexP
 
