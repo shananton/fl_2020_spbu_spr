@@ -15,3 +15,23 @@ library:
   source-dirs: src
   exposed-modules:
     PLang
+    LexP
+    ParseP
+  other-modules: []
+
+executables:
+  parser:
+    main: Main.hs
+    source-dirs: app
+    dependencies:
+      - pparse
+
+tests:
+  test:
+    main: TestDriver.hs
+    source-dirs: test
+    dependencies:
+      - pparse
+      - tasty
+      - tasty-hunit
+      - tasty-discover

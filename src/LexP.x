@@ -1,5 +1,5 @@
 {
-module LexP (Token (..), alexScanTokens) where
+module LexP (Token (..), tokenize) where
 }
 
 %wrapper "basic"
@@ -8,7 +8,7 @@ $uppercase = [A-Z]
 $lowercase = [a-z]
 $digit = [0-9]
 $alnum = [$uppercase $lowercase $digit]
-$space = [\ \n\r]
+$space = [\ \t\n\r]
 
 tokens :-
   
@@ -24,6 +24,8 @@ tokens :-
 
 
 {
+tokenize = alexScanTokens
+
 data Token = Var String
            | Ident String
            | Comma
@@ -32,4 +34,5 @@ data Token = Var String
            | RPar
            | Arr
            | Goal
+  deriving (Eq, Show)
 }

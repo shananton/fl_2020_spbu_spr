@@ -26,7 +26,7 @@ import Data.Function (on)
 %%
 
 program :: { P.Program }
-        : list0(ruleF, eps) GOAL body { P.Program (processRules $1) $3 }
+        : list0(ruleF, eps) GOAL list0(atom, COMMA) STOP { P.Program (processRules $1) $3 }
 
 eps
     : {- empty -} { () }
@@ -35,15 +35,12 @@ revList1(p, s)
     : p { [$1] }
     | revList1(p, s) s p { $3 : $1 }
 
-revList0(p, s)
-    : {- empty -} { [] }
-    | revList1(p, s) { $1 }
-
 list1(p, s)
     : revList1(p, s) { reverse $1 }
 
 list0(p, s)
-    : revList0(p, s) { reverse $1 }
+    : {- empty -} { [] }
+    | list1(p, s) { $1 }
 
 ruleF :: { RuleFull }
       : atom body { RuleFull $1 $2 }
@@ -83,5 +80,5 @@ processRules = assertUnique . map mkRelation . groupBy ((==) `on` getName)
       error "Redefinition of relation"
     unique = and . (\xs -> zipWith (/=) xs (if null xs then [] else tail xs)) . sort
 
-parseError = error "Parse error"
+parseError ts = error $ "Parse error on: " ++ show ts
 }

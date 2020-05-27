@@ -9,21 +9,26 @@ type Args = [Arg]
 type Body = [Atom]
 
 data Program = Program { relations :: [Relation], goal :: Body }
+  deriving Eq
 
 data Relation = Relation { name :: String
                          , rules :: [Rule] }
+  deriving Eq
 
 data Rule = Rule { params :: Args
                  , body :: Body }
+  deriving (Eq, Show)
 
 data Arg = AtomArg Atom
          | VarArg String
+  deriving Eq
 
 data Atom = Atom { func :: String, args :: Args }
-
+  deriving Eq
 
 instance {-# OVERLAPPING #-} Show Args where
-  show = intercalate ", " . map show
+  show args = (if null args then id else (("(" ++) . (++ ")"))) $
+    intercalate ", " $ map show args
 
 instance {-# OVERLAPPING #-} Show Body where
   show = (++ ".") . intercalate ", " . map show
@@ -38,11 +43,11 @@ instance Show Relation where
     intercalate "\n" $ map showRule rules
       where
         showRule (Rule params body) = 
-          name ++ "(" ++ show params ++ ") :- " ++ show body
+          name ++ show params ++ (if null body then "" else " :- ") ++ show body
 
 instance Show Arg where
   show (AtomArg atom) = show atom
   show (VarArg s)     = s
 
 instance Show Atom where
-  show (Atom func args) = func ++ "(" ++ show args ++ ")"
+  show (Atom func args) = func ++ show args
